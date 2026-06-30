@@ -28,11 +28,13 @@ Edit the `paths:` above to match wherever YOUR irreversible/consequential code l
 auth, schema migrations, billing, deletion paths, external-effect calls, anything where
 a bug costs more than a re-run.
 
-**The real enforcement lives in `.claude/hooks/_high-stakes.sh`** (`HIGH_STAKES_RE`):
-`scripts/autopilot.sh` sources it and REFUSES to auto-tick/commit/push a phase whose
-diff touches these paths — it stops for supervised review instead. The `paths:` list
-above mirrors that regex; if you change one, change the other so the advisory rule and
-the enforced gate stay in sync.
+**The single source of truth for enforcement is `.claude/hooks/_high-stakes.sh`**
+(`HIGH_STAKES_RE`): `scripts/autopilot.sh` sources it and REFUSES to auto-tick/commit/push
+a phase whose diff touches those paths — it stops for supervised review (and never pushes,
+even with `--pr`). The `paths:` globs above are a **human-readable mirror** of that regex,
+not a second enforcement point. When you customize, **edit `HIGH_STAKES_RE` first** (that's
+what's enforced), then update these globs to match. `scripts/doctor.sh` warns if you left the
+regex at its shipped default (a sign the enforced gate was never pointed at your real paths).
 
 - **No autopilot here.** This is human-on-the-loop work: a loop may *surface* a diff,
   but a human approves it before it lands. Keep `permission_mode: default`.

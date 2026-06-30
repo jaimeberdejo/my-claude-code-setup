@@ -9,9 +9,12 @@
 # whether this file is sourced under bash or zsh. Edit HIGH_STAKES_RE to match
 # YOUR project's sensitive paths.
 #
-# Segment keywords match as a path segment ((^|/)kw(/|$)); the loose substrings
-# (migration/money/payment) match anywhere in the path.
-HIGH_STAKES_RE='(^|/)(auth|payments|billing|transactions|migrations|compliance|suitability|secrets)(/|$)|migration|money|payment|credential'
+# Segment keywords match as a path segment ((^|/)kw(/|$)) — `auth[a-z]*` covers
+# auth/authentication/authorization. The loose substrings (delete/email/deploy/…)
+# match ANYWHERE in the path. The gate fails SAFE when over-broad (a false hit just
+# forces supervised review), so this list is intentionally generous — better to stop
+# on a benign `discharge.py` than to miss a real `refund` path. Edit it for YOUR repo.
+HIGH_STAKES_RE='(^|/)(auth[a-z]*|oauth|login|sessions?|accounts?|payments|billing|transactions|migrations|compliance|suitability|secrets|kyc|wallet|ledger)(/|$)|migration|money|payment|credential|delete|deletion|destroy|email|deploy|refund|withdraw|charge|webhook'
 
 # high_stakes_match <newline-separated-paths>
 #   Echoes the matching paths; returns 0 if any matched, 1 if none.
