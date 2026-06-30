@@ -27,10 +27,16 @@ loops (watchable + headless), path-scoped rules, and a pack of portable skills.
 - `.claude/rules/high-stakes.md`: path-scoped extra care for auth/migrations/money/etc.
 - `permissions.deny` covering secret reads (Read) and best-effort shell exfil (Bash).
 
+### Added — install
+- `install.sh`: idempotent, deterministic installer (copies scaffold + skills, chmods, runs
+  doctor; `--force`, `--global-skills`). Copying static files stays deterministic — no model.
+
 ### Added — skills (`skills/`)
 - Workflow: `roadmap` (spec → phases, adaptive count), `adr`, `ship-check`, `scope-guard`,
   `explain-diff`, `unstick`. The three review skills are report-only (`disallowed-tools`).
 - Ownership: `teach-back`, `mapme`, `quizme`.
+- Meta: `setup-lean-stack` — runs `install.sh`, then customizes CLAUDE.md/high-stakes for the
+  detected stack (the only part that needs intelligence).
 
 ### Added — docs
 - `README.md` (comprehensive entry), `lean-stack/GUIDE.md` (manual + practice project),

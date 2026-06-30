@@ -21,6 +21,7 @@ research fan-out**, so you keep full visibility and a 1-experienced-dev token bu
 ```
 my-claude-code-setup/
 ├── README.md              ← you are here (the master guide)
+├── install.sh             ← one-command installer (deterministic copy + doctor)
 ├── CHANGELOG.md · VERSION · LICENSE · .editorconfig
 ├── lean-stack/            ← the scaffold you drop into a repo
 │   ├── CLAUDE.md                    # lean constitution (edit placeholders per project)
@@ -36,7 +37,7 @@ my-claude-code-setup/
 │       ├── agents/evaluator.md      # independent grader
 │       ├── rules/high-stakes.md     # path-scoped extra care
 │       └── hooks/                   # 7 deterministic shell hooks
-└── skills/                ← 9 portable, stack-agnostic skills (copy into .claude/skills/)
+└── skills/                ← 10 portable skills (9 workflow/ownership + setup-lean-stack)
 ```
 
 There are **two parts**: the **`lean-stack/` scaffold** (drop its contents into any repo)
@@ -45,21 +46,47 @@ and the **`skills/` pack** (copy any skill into `.claude/skills/` per-project, o
 
 ---
 
-## Quick start
+## Install
+
+First, clone this repo somewhere stable:
 
 ```bash
-# 1. In the repo you want to work in:
-cp -r path/to/my-claude-code-setup/lean-stack/. .         # drop in the scaffold
-mkdir -p .claude/skills && cp -r path/to/my-claude-code-setup/skills/*/ .claude/skills/
-
-# 2. Make hooks/scripts runnable and verify:
-chmod +x .claude/hooks/*.sh scripts/*.sh
-bash scripts/doctor.sh          # tooling, scaffold, settings, hooks — must be green
-bash scripts/test-hooks.sh      # smoke-test the hooks
-
-# 3. Edit the placeholders in CLAUDE.md (your test/lint/run commands), then:
-#    describe your project → docs/SPEC.md, run the `roadmap` skill → docs/ROADMAP.md, and loop.
+git clone https://github.com/jaimeberdejo/my-claude-code-setup ~/my-claude-code-setup
 ```
+
+Then pick one of three ways to get it into a project, from most to least automated:
+
+### Option A — one command (recommended)
+```bash
+bash ~/my-claude-code-setup/install.sh /path/to/your-repo
+```
+`install.sh` does the **deterministic** part: copies the scaffold, copies all skills into
+`.claude/skills/`, `chmod +x`s the hooks/scripts, and runs `doctor.sh`. It's **idempotent** —
+re-running skips files that already exist, so it never clobbers a `CLAUDE.md` you've
+customized. Flags: `--force` (overwrite existing files), `--global-skills` (also install
+the skills into `~/.claude/skills/` for all projects).
+
+### Option B — the `setup-lean-stack` skill (install **and** customize)
+Install the skills globally once (`install.sh --global-skills`, or copy `skills/*` into
+`~/.claude/skills/`), then in any project just say *"set up the lean stack here."* The
+`setup-lean-stack` skill runs `install.sh` for the copy, then does the **intelligent** part a
+blind copy can't: detects your stack, fills `CLAUDE.md`'s test/lint/run commands, points
+`high-stakes.md` at your real sensitive dirs, and runs the health checks.
+
+### Option C — manual copy
+```bash
+cp -r ~/my-claude-code-setup/lean-stack/. /path/to/your-repo/
+mkdir -p /path/to/your-repo/.claude/skills && cp -r ~/my-claude-code-setup/skills/*/ /path/to/your-repo/.claude/skills/
+cd /path/to/your-repo && chmod +x .claude/hooks/*.sh scripts/*.sh && bash scripts/doctor.sh
+```
+
+After any option: edit `CLAUDE.md`'s placeholders (your real commands) if the skill didn't,
+then describe the project → `docs/SPEC.md`, run the `roadmap` skill → `docs/ROADMAP.md`, and loop.
+
+> **Why a script and not an "init" skill that writes the files?** Copying static files must
+> be deterministic — having a model regenerate ~40 files risks drift, costs tokens, and is
+> the exact bug this setup avoids elsewhere. So `install.sh` owns the copy; the skill only
+> owns the judgment (filling placeholders). Deterministic work stays deterministic.
 
 > **Model note:** don't blanket-set `CLAUDE_CODE_SUBAGENT_MODEL=haiku` — it *overrides*
 > the evaluator's `model: sonnet` and would downgrade your grader (the one place you want
@@ -133,6 +160,9 @@ You drive each arrow manually for stakes that warrant it, or hand the bracket to
 
 The three review skills set `disallowed-tools: Edit, Write, MultiEdit, NotebookEdit` — they
 *cannot* modify code, only report. A clean pre-commit chain: **`scope-guard → explain-diff → ship-check`**.
+
+**Meta** — `setup-lean-stack`: installs this scaffold into a project (via `install.sh`) and
+then customizes it for the detected stack. See [Install → Option B](#install) above.
 
 ---
 
