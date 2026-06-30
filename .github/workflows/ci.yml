@@ -56,6 +56,7 @@ jobs:
           bash scripts/test-high-stakes.sh
           bash scripts/test-secret-scan.sh
           bash scripts/test-autopilot-gates.sh
+          bash scripts/test-tick.sh
           bash scripts/test-checkpoint.sh
 
       - name: Install smoke test (clean target, idempotency, ship-by-directory)

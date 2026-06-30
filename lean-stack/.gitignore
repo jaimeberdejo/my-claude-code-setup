@@ -7,7 +7,9 @@ autopilot.log
 
 # Evidence/contract + internal hook state (regenerated each run)
 test-results.json
+.claude/.tick-evidence.json
 .claude/.phase-base
+.claude/.phase-grade
 .claude/.last-changed
 .claude/.evidence-reads
 

@@ -57,6 +57,15 @@ Plausibility is not correctness. "It looks right" is not a pass.
 You do NOT tick the roadmap and you do NOT edit any file — you only grade. Ticking
 is done by the orchestrator (autopilot.sh) or the human, gated on your PASS.
 
+## No-test-suite confirmation (only when there genuinely is none)
+The tick gate (`scripts/tick.sh`) refuses to mark a phase done without GREEN test
+evidence. If — and only if — the project has no runnable automated test suite AND the
+phase's "Done when:" does not require one (e.g. a docs-only or config-only phase), you
+may still PASS, but you MUST add a line containing the exact token `NO_TESTS_OK` BEFORE
+your verdict line. Silence is never "no tests OK": without that token a phase with no
+test evidence cannot be ticked. Never emit `NO_TESTS_OK` when tests exist but were not
+run, or to paper over a red suite — that is a false PASS.
+
 ## Verdict
 End your response with exactly one line:
 - `PASS` — every acceptance criterion is demonstrably met AND the acceptance

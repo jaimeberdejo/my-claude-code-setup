@@ -51,3 +51,4 @@ jobs:
           bash scripts/test-secret-scan.sh
           bash scripts/test-checkpoint.sh
           bash scripts/test-autopilot-gates.sh
+          bash scripts/test-tick.sh

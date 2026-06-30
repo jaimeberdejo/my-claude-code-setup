@@ -12,8 +12,11 @@
 set -uo pipefail
 SCAFFOLD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AUTOPILOT="$SCAFFOLD/scripts/autopilot.sh"
+TICK="$SCAFFOLD/scripts/tick.sh"
+EVID="$SCAFFOLD/scripts/test-evidence.sh"
 HS_LIB="$SCAFFOLD/.claude/lib/_high-stakes.sh"
 SS_LIB="$SCAFFOLD/.claude/lib/_secret-scan.sh"
+TC_LIB="$SCAFFOLD/.claude/lib/_test-cmd.sh"
 
 FAILS=0
 pass() { printf '  ✓ %s\n' "$1"; }
@@ -67,16 +70,39 @@ mkrepo() {
   REPO="$WORK/$1"; rm -rf "$REPO"
   mkdir -p "$REPO/.claude/lib" "$REPO/scripts" "$REPO/docs"
   cp "$AUTOPILOT" "$REPO/scripts/autopilot.sh"
+  cp "$TICK" "$REPO/scripts/tick.sh"
+  cp "$EVID" "$REPO/scripts/test-evidence.sh"
   cp "$HS_LIB" "$REPO/.claude/lib/_high-stakes.sh"
   cp "$SS_LIB" "$REPO/.claude/lib/_secret-scan.sh"
+  cp "$TC_LIB" "$REPO/.claude/lib/_test-cmd.sh"
   printf '{ "permissions": { "deny": ["Read(.env)"] } }\n' > "$REPO/.claude/settings.json"
+  # Mirror a real install's .gitignore so log/evidence/control files stay UNTRACKED — exactly
+  # like a shipped project. Without this the stub would commit autopilot.log and the .claude
+  # control files, and appending to them (e.g. test-evidence's log) would dirty the tracked
+  # tree and trip the evaluator-change cleanup. (Faithfulness, not a workaround.)
+  cat > "$REPO/.gitignore" <<'GI'
+autopilot.log
+*.log
+NEXT_FINDINGS.md
+AGENT_STOP
+STEER.md
+test-results.json
+.claude/.tick-evidence.json
+.claude/.phase-base
+.claude/.phase-ready
+.claude/.phase-grade
+.claude/.last-changed
+GI
   printf '## Phase 1 — Work\n\n- [ ] do the work\n' > "$REPO/docs/ROADMAP.md"
   printf 'next: work\n' > "$REPO/docs/STATE.md"
   ( cd "$REPO" && git init -q && git config user.email t@t.t && git config user.name t \
       && git config gc.auto 0 && git add -A && git commit -q -m init )
 }
 # run <repo> <flags...>: run autopilot with the stubs; output captured OUTSIDE the repo.
-run() { local r="$1"; shift; ( cd "$r" && PATH="$BIN:$PATH" bash scripts/autopilot.sh "$@" ) >"$WORK/out" 2>&1; echo $?; }
+# LEAN_TEST_CMD=true gives test-evidence.sh a green suite (stub repos have no real tests),
+# so the tick gate's fresh-green-evidence requirement is satisfied for the control-flow tests.
+# The evidence gate's own refuse paths (red/stale/missing/null) are covered in test-tick.sh.
+run() { local r="$1"; shift; ( cd "$r" && PATH="$BIN:$PATH" LEAN_TEST_CMD=true bash scripts/autopilot.sh "$@" ) >"$WORK/out" 2>&1; echo $?; }
 ticked()   { ! grep -q '\- \[ \] do the work' "$1/docs/ROADMAP.md"; }   # 0 if ticked
 # Pipe-free substring test. NEVER use `cmd | grep -q` under `set -o pipefail`: grep -q
 # closes the pipe on first match, cmd dies with SIGPIPE, and pipefail reports failure
@@ -112,8 +138,9 @@ grep -q "no output" "$WORK/out" && ! ticked "$REPO" && pass "empty verdict stops
 mkrepo r5; BUILDER_MODE=clean EVAL_MODE=garble; export BUILDER_MODE EVAL_MODE; run "$REPO" 1 --no-worktree --allow-dirty >/dev/null
 grep -q "unrecognized verdict" "$WORK/out" && ! ticked "$REPO" && pass "garbled verdict stops, not ticked" || fail "garbled verdict mishandled"
 
-# 6 — clean PASS (no tampering) → ticks and commits the phase.
+# 6 — clean PASS (no tampering) → routes through scripts/tick.sh, ticks and commits the phase.
 mkrepo r6; BUILDER_MODE=clean EVAL_MODE=pass; export BUILDER_MODE EVAL_MODE; run "$REPO" 1 --no-worktree --allow-dirty >/dev/null
+grep -q "tick: .* ticked" "$WORK/out" && pass "clean PASS routes through scripts/tick.sh" || fail "tick.sh not invoked on clean PASS"
 ticked "$REPO" && pass "clean PASS ticks the roadmap" || fail "clean PASS did not tick"
 contains "$(logof "$REPO")" "passed independent grade" && pass "clean PASS commits the phase" || fail "clean PASS did not commit"
 

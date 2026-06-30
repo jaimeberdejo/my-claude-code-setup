@@ -29,14 +29,11 @@ if [ -t 0 ]; then INPUT='{}'; else INPUT=$(cat 2>/dev/null || echo '{}'); fi
 ACTIVE=$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null)
 [ "$ACTIVE" = "true" ] && exit 0
 
-# --- resolve the test command ---
+# --- resolve the test command (shared with scripts/test-evidence.sh via _test-cmd.sh) ---
 CMD=""
-if [ -n "${LEAN_TEST_CMD:-}" ]; then
-  CMD="$LEAN_TEST_CMD"
-elif command -v pytest >/dev/null 2>&1 && { [ -d tests ] || ls test_*.py >/dev/null 2>&1; }; then
-  CMD="pytest -q"
-elif [ -f package.json ] && jq -e '.scripts.test' package.json >/dev/null 2>&1; then
-  CMD="npm test --silent"
+[ -f .claude/lib/_test-cmd.sh ] && . .claude/lib/_test-cmd.sh 2>/dev/null || true
+if command -v resolve_test_cmd >/dev/null 2>&1; then
+  CMD=$(resolve_test_cmd 2>/dev/null || true)
 fi
 
 if [ -z "$CMD" ]; then
