@@ -31,7 +31,7 @@ Then: edit `CLAUDE.md` (your test/lint/run commands) → point `HIGH_STAKES_RE` 
 `roadmap` skill → build with `/phase`. New to it all? Work through `PRACTICE-PROJECT.md` first.
 
 > **Two parts, how they relate:** the **`lean-stack/` scaffold** (hooks, commands, docs layout,
-> autopilot) and the **`skills/` pack** (10 portable skills). Skills work standalone, but several
+> autopilot) and the **`skills/` pack** (11 portable skills). Skills work standalone, but several
 > (`roadmap`, `ship-check`, `adr`, …) assume the scaffold's `docs/` layout — install both for the
 > full experience.
 
@@ -58,7 +58,7 @@ my-claude-code-setup/
 │       ├── agents/evaluator.md      # independent grader
 │       ├── rules/high-stakes.md     # path-scoped extra care
 │       └── hooks/                   # 7 deterministic shell hooks + 2 shared libs (_secret-scan, _high-stakes)
-└── skills/                ← 10 portable skills (9 workflow/ownership + setup-lean-stack)
+└── skills/                ← 11 portable skills (10 workflow/ownership + setup-lean-stack)
 ```
 
 > The repo-root `README.md` and everything under `lean-stack/toolkit-docs/` (`GUIDE.md`,

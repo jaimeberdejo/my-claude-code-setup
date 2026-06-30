@@ -6,7 +6,7 @@ Close out this session:
    unchecked and say so.
 3. If any real architectural decision was made, append a 4-line ADR to a new file
    in docs/decisions/ (format: id, date, decision, why).
-4. If EVERY phase in docs/ROADMAP.md is now `- [x]`, point me to GUIDE "Part 5b → Finishing a
-   roadmap" (archive it + start the next batch). Do NOT archive or write a new roadmap yourself —
-   that's a deliberate human step.
+4. If EVERY phase in docs/ROADMAP.md is now `- [x]`, tell me the roadmap is complete and offer the
+   `milestone` skill (archive it + start the next batch) — but do NOT archive or write a new
+   roadmap yourself unless I say so; that's a deliberate step.
 Keep all of it terse. Then tell me it's safe to /clear.

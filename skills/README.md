@@ -3,7 +3,7 @@
 > Part of **[my-claude-code-setup](../README.md)** — see the repo-root README for the full
 > picture and how these pair with the lean-stack scaffold.
 
-This is the **complete index of all 10 skills** — 6 workflow + 3 ownership + the installer
+This is the **complete index of all 11 skills** — 7 workflow + 3 ownership + the installer
 meta-skill. (The ownership three also have a deeper writeup in [OWNERSHIP.md](OWNERSHIP.md).)
 
 These are single-file each, no external dependencies. They encode workflows the base model
@@ -15,6 +15,7 @@ scaffold-aware, not fully stack-neutral.
 | Skill | Category | Fires when you... | What it does |
 |---|---|---|---|
 | **roadmap** | workflow | have a spec, need phases | Turns docs/SPEC.md into docs/ROADMAP.md — an adaptive number of phases (recommends few ~3–4 / medium ~5–7 / many ~8–12+; never hardcodes a count), each with a measurable "Done when:" and an advisory loopable/supervised tag |
+| **milestone** | workflow | add phases / finish a roadmap | Mechanical roadmap lifecycle: add phase(s) mid-project (correct shape, unique heading, position=order), or archive a finished roadmap and start the next batch/milestone ("expand the scope", "the roadmap is done") |
 | **adr** | workflow | make a real decision | Writes a terse 4-line ADR to docs/decisions/ |
 | **ship-check** | workflow | are about to commit/PR | Runs the project's tests/lint/typecheck + scans for debug leftovers, secrets, missing docs. Verdict: READY / NOT READY (report-only; can't edit) |
 | **scope-guard** | workflow | finish a change | Flags out-of-scope edits, drive-by refactors, unexpected deletions. Verdict: IN SCOPE / SCOPE CREEP (report-only; can't edit) |
@@ -37,7 +38,7 @@ scaffold-aware, not fully stack-neutral.
 - **Small.** One file each — low context cost, easy to read and adapt. Edit them; they're yours.
 
 ## Install
-**Easiest — the repo installer** copies all 9 portable skills per-project (and
+**Easiest — the repo installer** copies all 10 portable skills per-project (and
 `setup-lean-stack` only with `--global-skills`):
 ```bash
 bash /path/to/my-claude-code-setup/install.sh .                 # per-project skills
@@ -46,7 +47,7 @@ bash /path/to/my-claude-code-setup/install.sh . --global-skills # also into ~/.c
 **By hand** — the workflow + ownership skills (everything except the installer one):
 ```bash
 mkdir -p .claude/skills
-cp -r roadmap adr ship-check scope-guard explain-diff unstick teach-back mapme quizme .claude/skills/
+cp -r roadmap milestone adr ship-check scope-guard explain-diff unstick teach-back mapme quizme .claude/skills/
 ```
 (Swap `.claude/skills` for `~/.claude/skills` to install globally for all projects.)
 

@@ -269,7 +269,9 @@ touch AGENT_STOP     # halt at next tool call   ·   rm AGENT_STOP   # resume
 The loop is **checkbox-driven, not index-driven** — nothing reasons about phase numbers.
 `autopilot.sh` just greps for any `- [ ]` line, `/phase` picks the *first* phase with unchecked
 items, and `tick_phase` flips `- [ ]`→`- [x]` under the heading recorded in `.claude/.phase-ready`.
-So adding or reordering work is a first-class, low-risk operation.
+So adding or reordering work is a first-class, low-risk operation. **Easiest: just say
+*"add a phase to do X"* or *"the roadmap is done, start the next milestone"* — the `milestone`
+skill does the steps below for you. Or do them by hand:
 
 ### Adding phases mid-project
 Edit `docs/ROADMAP.md` and drop in one or more blocks in the **same shape**:
