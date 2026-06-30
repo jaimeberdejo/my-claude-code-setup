@@ -79,6 +79,21 @@ else
   printf '  ✗ kill-switch FAILED OPEN from a subdir (rc=%s)\n' "$ks_sub_rc"; FAILS=$((FAILS+1))
 fi
 
+# Wiring assertion: the brake is only effective if settings.json actually dispatches
+# kill-switch.sh on EVERY tool call. Per the Claude Code hooks docs, "*", "" and an
+# omitted matcher all mean match-all; a narrowed matcher (e.g. "Bash") would fail open.
+# (Unit-asserts the wiring shape; live harness dispatch can only be confirmed at runtime.)
+if jq -e '
+      [ .hooks.PreToolUse[]?
+        | select([.hooks[]?.command | select(test("kill-switch"))] | length > 0)
+        | (.matcher // "*") ] as $ms
+      | ($ms | length > 0) and ($ms | all(. == "" or . == "*"))
+    ' .claude/settings.json >/dev/null 2>&1; then
+  printf '  ✓ kill-switch wired into PreToolUse with a match-all matcher\n'
+else
+  printf '  ✗ kill-switch NOT wired match-all in PreToolUse (brake may not fire on every tool)\n'; FAILS=$((FAILS+1))
+fi
+
 echo ""
 # Verify the SHARED secret-scan library blocks a planted credential and does NOT
 # false-positive on a clean file. Runs in an ISOLATED temp git repo so we never

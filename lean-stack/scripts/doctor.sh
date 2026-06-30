@@ -78,6 +78,20 @@ if [ -f .claude/settings.json ]; then
   jq -e '.permissions.deny | length > 0' .claude/settings.json >/dev/null 2>&1 \
     && ok "permissions.deny present (secret-read protection)" \
     || warn "no permissions.deny — Claude can read .env/secrets. Add deny rules."
+  # Kill-switch wiring: the AGENT_STOP brake must be a PreToolUse hook with a match-all
+  # matcher so it fires before EVERY tool call. Per the Claude Code hooks docs, "*", ""
+  # and an omitted matcher all mean "match all" — accept any of them; reject a narrowed
+  # matcher (e.g. "Bash") that would let other tools slip past the brake.
+  if jq -e '
+        [ .hooks.PreToolUse[]?
+          | select([.hooks[]?.command | select(test("kill-switch"))] | length > 0)
+          | (.matcher // "*") ] as $ms
+        | ($ms | length > 0) and ($ms | all(. == "" or . == "*"))
+      ' .claude/settings.json >/dev/null 2>&1; then
+    ok "kill-switch wired into PreToolUse with a match-all matcher"
+  else
+    bad "kill-switch.sh not wired into PreToolUse with a match-all matcher (* / \"\" / omitted) — the AGENT_STOP brake may not fire on every tool"
+  fi
 fi
 echo ""
 
