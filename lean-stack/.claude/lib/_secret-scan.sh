@@ -89,6 +89,13 @@ secret_scan_diff() {
   local range="$1"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "secret-scan: not a git repo"; return 2; }
   [ -z "$range" ] && { echo "secret-scan: no range given"; return 2; }
+  # Fail CLOSED if the range can't be resolved. Otherwise `git diff` errors to empty (2>/dev/null)
+  # and BOTH endpoints below yield no findings — so a forged/stale/rewritten base ref would be
+  # reported "clean", silently bypassing this gate (and, in tick.sh, the high-stakes scan that
+  # runs only after this one passes). Validate both endpoints as commits first.
+  git rev-parse --verify --quiet "${range%%..*}^{commit}" >/dev/null 2>&1 \
+    && git rev-parse --verify --quiet "${range##*..}^{commit}" >/dev/null 2>&1 \
+    || { echo "secret-scan: cannot resolve range '$range' — fail-closed"; return 2; }
   local -a found=()
   local f hits line
   while IFS= read -r f; do

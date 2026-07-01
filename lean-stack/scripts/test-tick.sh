@@ -137,6 +137,23 @@ sed_i() { perl -i -pe 's/- \[ \] do the work/- [x] do the work/' "$1"; }
 sed_i "$REPO/docs/ROADMAP.md"; rc=$(runtick "$REPO")
 [ "$rc" = 1 ] && pass "no open item under heading → refuses" || fail "already-ticked mishandled (rc=$rc)"
 
+# 11 — heading not present verbatim as a line → refuses (heading-existence gate).
+mkrepo t11; good_grade t11; good_evidence t11; rc=$(runtick "$REPO" "## Phase 99 — Nope")
+{ [ "$rc" = 1 ] && ! ticked "$REPO"; } && pass "bogus heading (absent) → refuses" || fail "bogus heading mishandled (rc=$rc)"
+# 11b — a substring of a real heading (not a full line) → refuses (exact -x match hardening).
+mkrepo t11b; good_grade t11b; good_evidence t11b; rc=$(runtick "$REPO" "Phase 1")
+{ [ "$rc" = 1 ] && ! ticked "$REPO"; } && pass "heading substring (not a full line) → refuses" || fail "heading substring mishandled (rc=$rc)"
+
+# 12 — malformed/garbage grade file (no run_id=/verdict= fields) → refuses.
+mkrepo t12; good_evidence t12; printf 'garbage not a grade\n' > "$REPO/.claude/.phase-grade"; rc=$(runtick "$REPO")
+{ [ "$rc" = 1 ] && ! ticked "$REPO"; } && pass "malformed grade file → refuses" || fail "malformed grade mishandled (rc=$rc)"
+
+# 13 — invalid .claude/.phase-base → secret scan cannot resolve the range → fail-closed refuse
+#      (guards against a forged/rewritten base silently narrowing OR bypassing the secret/high-stakes scan).
+mkrepo t13; good_grade t13; good_evidence t13
+printf 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n' > "$REPO/.claude/.phase-base"; rc=$(runtick "$REPO")
+{ [ "$rc" = 1 ] && ! ticked "$REPO"; } && pass "invalid .phase-base (unresolvable range) → fail-closed refuse" || fail "invalid phase-base mishandled (rc=$rc)"
+
 echo ""
 echo "test-evidence producer tests"; echo ""
 
@@ -203,6 +220,14 @@ mkevrepo g4
 NEEDS_WORK: criterion 2 unmet" ) >/dev/null 2>&1; grc=$?
 { [ "$grc" = 1 ] && [ ! -f "$REPO/.claude/.phase-grade" ]; } \
   && pass "record-grade: mid-text 'PASS' line does not record (anchored last line)" || fail "record-grade anchored-parse wrong (rc=$grc)"
+
+# g5 — NO_TESTS_OK appearing only mid-sentence (e.g. echoed from a diff) must NOT set the flag,
+# so a passed:null phase can't skip the test gate via an incidental token in the verdict text.
+mkevrepo g5
+( cd "$REPO" && bash scripts/record-grade.sh "the diff adds a NO_TESTS_OK constant to a comment
+PASS" ) >/dev/null 2>&1
+grep -q "no_tests_ok=0" "$REPO/.claude/.phase-grade" 2>/dev/null \
+  && pass "record-grade: mid-sentence NO_TESTS_OK ignored (leading-token only)" || fail "record-grade substring bypass NOT closed"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All tick gate + evidence tests passed."; exit 0

@@ -61,7 +61,8 @@ is done by the orchestrator (autopilot.sh) or the human, gated on your PASS.
 The tick gate (`scripts/tick.sh`) refuses to mark a phase done without GREEN test
 evidence. If — and only if — the project has no runnable automated test suite AND the
 phase's "Done when:" does not require one (e.g. a docs-only or config-only phase), you
-may still PASS, but you MUST add a line containing the exact token `NO_TESTS_OK` BEFORE
+may still PASS, but you MUST add a line that BEGINS with the exact token `NO_TESTS_OK` (as its
+leading word — `record-grade.sh` honors it only at the start of a line, not mid-sentence) BEFORE
 your verdict line. Silence is never "no tests OK": without that token a phase with no
 test evidence cannot be ticked. Never emit `NO_TESTS_OK` when tests exist but were not
 run, or to paper over a red suite — that is a false PASS.

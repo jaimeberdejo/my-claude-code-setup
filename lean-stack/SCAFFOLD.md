@@ -17,7 +17,7 @@ project (so it doesn't pollute it); read it on GitHub:
 - **.claude/skills/** — the workflow + ownership skills (roadmap, adr, ship-check, scope-guard,
   explain-diff, unstick, teach-back, mapme, quizme).
 - **docs/** — SPEC/ROADMAP/STATE/ARCHITECTURE templates + `decisions/` for ADRs.
-- **scripts/** — `autopilot.sh` (guarded autonomous loop), `doctor.sh`, `test-hooks.sh`.
+- **scripts/** — `autopilot.sh` (guarded autonomous loop), `tick.sh` (the completion gate), `doctor.sh`, `test-hooks.sh`.
 
 CI is **opt-in**: re-run the installer with `--with-ci` to also drop a
 `.github/workflows/lean-stack-ci.yml` into your project.

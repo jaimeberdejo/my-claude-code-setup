@@ -31,6 +31,19 @@ TESTS=(
   test-lint.sh
 )
 
+# Drift guard: every scripts/test-*.sh MUST be listed above, or a newly-added guard test would
+# silently never run in CI — the exact failure this single-source runner exists to prevent.
+# (test-evidence.sh is excluded: it is the evidence PRODUCER, not a test suite.)
+for f in scripts/test-*.sh; do
+  [ -e "$f" ] || continue
+  b="${f#scripts/}"
+  [ "$b" = "test-evidence.sh" ] && continue
+  case " ${TESTS[*]} " in
+    *" $b "*) ;;
+    *) echo "run-guard-tests: '$b' exists but is missing from TESTS[] — add it (or it never runs in CI)."; exit 1 ;;
+  esac
+done
+
 for t in "${TESTS[@]}"; do
   echo "=== scripts/$t ==="
   bash "scripts/$t"

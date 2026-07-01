@@ -7,13 +7,11 @@
 # Run from the repo root: bash scripts/test-hooks.sh
 
 set -uo pipefail
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
-cd "$ROOT" || exit 1
-# In the toolkit source repo, the installable scaffold lives under lean-stack/.
-# In an installed project, .claude/ and scripts/ live at the git root.
-if [ ! -d .claude ] && [ -d lean-stack/.claude ]; then
-  cd lean-stack || exit 1
-fi
+# Resolve the scaffold SCRIPT-RELATIVE — scripts/.. is always the scaffold root, whether that's the
+# git root (installed project) or lean-stack/ (this toolkit repo). git-toplevel is NOT reliable here:
+# in the toolkit repo it points at the OUTER root, and a stray .claude/ there (session artifacts, a
+# parent project) would defeat a "does .claude exist?" heuristic. Script-relative is immune to both.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 export CLAUDE_PROJECT_DIR="$PWD"
 
 FAILS=0

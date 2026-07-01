@@ -80,7 +80,10 @@ heading="${1:-}"
 [ -z "$heading" ] && heading=$(cat .claude/.phase-ready 2>/dev/null || true)
 [ -z "$heading" ] && refuse "no phase heading (pass one, or write .claude/.phase-ready)"
 [ -f "$ROADMAP" ] || refuse "missing $ROADMAP"
-grep -qF "$heading" "$ROADMAP" || refuse "phase heading not found verbatim in roadmap: '$heading'"
+# Exact FULL-LINE match (-x): every downstream awk block consumes the heading via `$0==ph`, so a
+# mere substring that isn't a standalone `## ` line would pass here yet match nothing later. Make
+# the existence check agree with the consumption — refuse loudly instead of failing silently.
+grep -qxF "$heading" "$ROADMAP" || refuse "phase heading not found as an exact line in roadmap: '$heading'"
 
 HEAD=$(git rev-parse HEAD 2>/dev/null) || refuse "not a git repo / no HEAD"
 command -v jq >/dev/null 2>&1 || refuse "jq required to read evidence"

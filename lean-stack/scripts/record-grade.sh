@@ -23,7 +23,10 @@ if [ "$LAST" != "PASS" ]; then
 fi
 
 NO_TESTS_OK=0
-printf '%s' "$VERDICT" | grep -q 'NO_TESTS_OK' && NO_TESTS_OK=1
+# Match NO_TESTS_OK only as a leading token on its OWN line (per evaluator.md's contract), not as a
+# bare substring — the verdict text is diff-influenced, so an incidental `NO_TESTS_OK` echoed from
+# code the evaluator quoted must NOT flip the flag and let a passed:null phase skip the test gate.
+printf '%s\n' "$VERDICT" | grep -qE '^[[:space:]]*NO_TESTS_OK([[:space:]]|$)' && NO_TESTS_OK=1
 
 mkdir -p .claude
 {

@@ -74,6 +74,17 @@ else
   bad "installed tree FAILED scripts/test-hooks.sh"
 fi
 
+# Brownfield: a target that already has its OWN .claude/settings.json must be PRESERVED and the
+# user WARNED that the lean hooks/permissions.deny were not merged (else the kill-switch/secret
+# guard are silently inert). This is the documented adoption gotcha — it must be surfaced, not silent.
+BF="$(mktemp -d)" && ( cd "$BF" && git init -q && git config user.email t@t.t && git config user.name t )
+mkdir -p "$BF/.claude"; printf '{"hooks":{}}\n' > "$BF/.claude/settings.json"
+BF_BEFORE="$(cat "$BF/.claude/settings.json")"
+BF_OUT="$(bash "$REPO/install.sh" "$BF" 2>&1)"
+[ "$(cat "$BF/.claude/settings.json")" = "$BF_BEFORE" ] && ok "brownfield: existing settings.json preserved" || bad "brownfield settings.json clobbered"
+case "$BF_OUT" in *"NOT merged"*) ok "brownfield: install warns lean hooks not wired" ;; *) bad "brownfield: NO warning that hooks were left unwired" ;; esac
+rm -rf "$BF"
+
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "install smoke test: PASS"; exit 0
 else echo "install smoke test: $FAILS failure(s)"; exit 1; fi

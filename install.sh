@@ -47,7 +47,7 @@ TARGET="$(cd "$TARGET" && pwd)" || { echo "install: can't enter target '$TARGET'
 VERSION="$(cat "$SRC/VERSION" 2>/dev/null || echo '?')"
 echo "install: lean-stack v$VERSION  →  $TARGET  (force=$FORCE)"
 
-COPIED=0; SKIPPED=0; FAILED=0
+COPIED=0; SKIPPED=0; FAILED=0; SETTINGS_KEPT=0
 
 # Copy one file, honoring --force and creating parent dirs. Skips (and reports) if it
 # exists and --force is off. A failed copy is reported and counted — never silently
@@ -55,7 +55,12 @@ COPIED=0; SKIPPED=0; FAILED=0
 copy_file() {
   local rel="$1" srcfile="$2" dest="$TARGET/$1"
   if [ -e "$dest" ] && [ "$FORCE" -eq 0 ]; then
-    echo "  skip (exists): $rel"; SKIPPED=$((SKIPPED+1)); return
+    echo "  skip (exists): $rel"; SKIPPED=$((SKIPPED+1))
+    # Brownfield safety: keeping the target's own settings.json means the lean hooks +
+    # permissions.deny were NOT merged, so the kill-switch / secret-guard won't fire. Flag it
+    # loudly at the end (doctor also catches this, but only when the target is already a git repo).
+    [ "$rel" = ".claude/settings.json" ] && SETTINGS_KEPT=1
+    return
   fi
   mkdir -p "$(dirname "$dest")"
   if cp "$srcfile" "$dest"; then
@@ -149,6 +154,12 @@ echo "install: copied $COPIED file(s), skipped $SKIPPED, failed $FAILED."
 if [ "$FAILED" -gt 0 ]; then
   echo "install: ⛔ $FAILED file(s) failed to copy — the install is INCOMPLETE. Fix the errors above and re-run." >&2
   exit 1
+fi
+if [ "$SETTINGS_KEPT" -eq 1 ]; then
+  echo "install: ⚠ kept your existing .claude/settings.json — the lean HOOKS and permissions.deny were" >&2
+  echo "install:   NOT merged, so the kill-switch, secret-guard, and other hooks will NOT fire until you" >&2
+  echo "install:   merge them from $SCAFFOLD/.claude/settings.json (hooks + permissions blocks). Re-run" >&2
+  echo "install:   with --force to overwrite instead. (This is the documented brownfield-adoption step.)" >&2
 fi
 echo ""
 echo "Next:"

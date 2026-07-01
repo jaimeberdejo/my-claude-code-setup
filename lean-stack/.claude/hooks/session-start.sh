@@ -26,7 +26,13 @@ fi
 
 if [ -f docs/STATE.md ]; then
   echo "--- docs/STATE.md ---"
-  cat docs/STATE.md
+  # Cap it: STATE is meant to be short (current state + next action), but nothing forces that, and
+  # this is injected into context every session. Bound the one previously-uncapped read.
+  head -60 docs/STATE.md
+  s_lines=$(wc -l < docs/STATE.md 2>/dev/null || echo 0)
+  if [ "${s_lines:-0}" -gt 60 ] 2>/dev/null; then
+    echo "(truncated — STATE.md is $s_lines lines; keep it short: current state + the single next action)"
+  fi
 fi
 
 if [ -f docs/ARCHITECTURE.md ]; then

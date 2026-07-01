@@ -78,5 +78,21 @@ want_clean  "uuid"                 "f_uuid.py"   'id = "550e8400-e29b-41d4-a716-
 want_clean  "css class sk-"        "f_css.js"    'cls = "sk-loading-spinner-wrapper-large-variant"'
 
 echo ""
+echo "secret_scan_diff range handling (fail-closed on unresolvable range):"
+git reset -q 2>/dev/null; rm -f f_*
+printf 'ok\n' > r_ok.txt;  git add r_ok.txt;  git commit -q -m c1
+BASE=$(git rev-parse HEAD)
+printf 'clean\n'  > r_ok2.txt; git add r_ok2.txt; git commit -q -m c2
+secret_scan_diff "$BASE..HEAD" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && echo "  ✓ valid clean range → clean (0)" || { echo "  ✗ valid clean range rc=$rc"; FAILS=$((FAILS+1)); }
+secret_scan_diff "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef..HEAD" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && echo "  ✓ unresolvable range → fail-closed (2)" || { echo "  ✗ unresolvable range rc=$rc (expected 2 — FAIL-OPEN REGRESSION)"; FAILS=$((FAILS+1)); }
+secret_scan_diff "" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && echo "  ✓ empty range → fail-closed (2)" || { echo "  ✗ empty range rc=$rc"; FAILS=$((FAILS+1)); }
+printf 'AKIAIOSFODNN7EXAMPLE\n' > r_secret.txt; git add r_secret.txt; git commit -q -m c3
+secret_scan_diff "$BASE..HEAD" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 1 ] && echo "  ✓ range containing an AWS key → secret (1)" || { echo "  ✗ range with secret rc=$rc"; FAILS=$((FAILS+1)); }
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All secret-scan fixture tests passed."; exit 0
 else echo "$FAILS fixture test(s) FAILED."; exit 1; fi

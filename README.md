@@ -214,7 +214,8 @@ preflight (use sparingly — it removes a safety check).
 blast-radius limit · independent verifier before roadmap ticking · the single `scripts/tick.sh`
 completion gate · evaluator-change cleanup in the headless script · high-stakes gate
 (auth/money/migrations → supervised stop, never auto-ticked) · secret-scan before commit/push ·
-kill-switch · budget cap.
+kill-switch · budget cap *(operator-set in your Claude/gateway config — the one guardrail the stack
+can't enforce for you)*.
 
 **One shared completion gate.** All ticking — `/wrap`, `/autopilot`, and `scripts/autopilot.sh` —
 routes through `scripts/tick.sh`. Nothing marks a phase done without it: it requires a recorded
