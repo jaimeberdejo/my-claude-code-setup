@@ -49,7 +49,7 @@ my-claude-code-setup/
 │   ├── CLAUDE.md                    # lean constitution (edit placeholders per project)   [installed]
 │   ├── SCAFFOLD.md                  # scaffold quick-start (ships as SCAFFOLD.md, never clobbers README) [installed]
 │   ├── docs/                        # SPEC · ROADMAP · STATE · ARCHITECTURE · decisions/ · plans/
-│   ├── scripts/                     # autopilot.sh · doctor.sh · test-hooks.sh
+│   ├── scripts/                     # autopilot.sh · tick.sh (the completion gate) · doctor.sh · test-hooks.sh
 │   ├── .github/workflows/lean-stack-ci.yml   # OPT-IN CI (install.sh --with-ci)
 │   └── .claude/
 │       ├── settings.json            # hooks → events + permissions.deny
@@ -156,7 +156,7 @@ You drive each arrow manually for stakes that warrant it, or hand the bracket to
 | `/resume` | Reads SPEC+ROADMAP+STATE, states the single next action, then waits. Orientation only. |
 | `/phase` | Builds one roadmap phase: research-if-needed → plan → TDD → evaluator self-check. **Does not tick the roadmap** (that's gated on an independent grade). |
 | `/autopilot N` | **Watchable** in-session loop: runs N phases in your terminal, grading each via the evaluator subagent. Accepts `N`, `3-5`, or `all`. |
-| `/wrap` | Session close-out: update STATE, tick ROADMAP (only evaluator-confirmed items), append an ADR. |
+| `/wrap` | Session close-out: update STATE, tick ROADMAP through the shared `scripts/tick.sh` gate (evaluator PASS + fresh green tests + clean secret scan + no high-stakes), append an ADR. Never flips checkboxes by hand. |
 
 ## Agent & rules
 
@@ -211,18 +211,24 @@ end and never touches main (secret-scanned before any push); `--allow-dirty` ski
 preflight (use sparingly — it removes a safety check).
 
 **The guardrails:** verifiable signal · bounded stop · bounded retries (3-strike thrash cap) ·
-blast-radius limit · independent verifier before roadmap ticking · evaluator-change cleanup in
-the headless script · high-stakes gate (auth/money/migrations → supervised stop, never
-auto-ticked) · secret-scan before commit/push · kill-switch · budget cap.
+blast-radius limit · independent verifier before roadmap ticking · the single `scripts/tick.sh`
+completion gate · evaluator-change cleanup in the headless script · high-stakes gate
+(auth/money/migrations → supervised stop, never auto-ticked) · secret-scan before commit/push ·
+kill-switch · budget cap.
 
-**Which guarantees are deterministic depends on the mode.** The *headless* `scripts/autopilot.sh`
-is the only mode where the script is the **sole roadmap-ticker**: it snapshots and discards the
-evaluator's changes, runs the secret-scan before every commit, and the high-stakes gate refuses to
-tick/commit and **never pushes** that branch (even with `--pr`). In the *watchable* `/autopilot`
-and *manual* `/phase`+`/wrap` modes the same independent evaluator grades the work, but the builder
-*session* performs the tick — so there the "independent grader" is real and the "sole-ticker /
-discard / high-stakes-no-push" enforcement is advisory (you are the loop). Use the headless script
-when you want the deterministic guarantees; use the in-session modes when you're watching.
+**One shared completion gate.** All ticking — `/wrap`, `/autopilot`, and `scripts/autopilot.sh` —
+routes through `scripts/tick.sh`. Nothing marks a phase done without it: it requires a recorded
+evaluator PASS, fresh green test evidence bound to the exact commit, a clean secret scan, and no
+high-stakes changes, then flips the checkbox and updates the STATE auto-block. It **fails closed** —
+on any refusal `docs/ROADMAP.md` is left byte-identical. So the secret-scan, high-stakes, and
+evidence checks apply in the *in-session* modes too, not only the headless script.
+
+**What the headless script adds on top of that shared gate is isolation:** a fresh Claude process
+per phase (so context never rots), snapshot-and-discard of any change the evaluator makes, and
+throwaway-worktree isolation (a bad run can't touch your checkout; a high-stakes branch is never
+pushed, even with `--pr`). The in-session `/autopilot` and `/phase`+`/wrap` modes share the tick
+gate but not that isolation — you (the watcher) are that guardrail. Use the headless script for
+unattended runs; use the in-session modes when you want to watch.
 
 ---
 
@@ -254,9 +260,11 @@ the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a
 - `bash scripts/doctor.sh` — one-command health check (run before any unattended run).
 - `bash scripts/test-hooks.sh` — hook smoke tests (incl. the secret-scan guard).
 - **Repo CI** `.github/workflows/ci.yml` — on push/PR, runs shell-syntax + `settings.json`
-  validation against `lean-stack/`, lints `install.sh`, and runs the **install smoke test**
-  (`.github/scripts/install-smoke.sh`: no tool-doc pollution, no README clobber, idempotent,
-  `.gitignore` merge). The scaffold's own `lean-stack-ci.yml` is opt-in for installed projects.
+  validation against `lean-stack/`, shellcheck + actionlint, lints `install.sh`, runs the
+  **behavioral guard suite** (`scripts/run-guard-tests.sh` — the single test list both this
+  workflow and the scaffold's own `lean-stack-ci.yml` call, so the two never drift), and the
+  **install smoke test** (`.github/scripts/install-smoke.sh`: no tool-doc pollution, no README
+  clobber, idempotent, `.gitignore` merge). `lean-stack-ci.yml` is opt-in for installed projects.
 
 ## Loop engineering notes
 
