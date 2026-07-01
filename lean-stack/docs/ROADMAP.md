@@ -2,8 +2,8 @@
 
 > Each phase must leave the app in a working, demoable state.
 > `- [ ]` = todo, `- [x]` = done. The /phase command and hooks read these.
-> `Mode:` is an advisory human aid (loopable | supervised) — autopilot.sh does NOT parse it;
-> the enforced control is the high-stakes path gate in .claude/lib/_high-stakes.sh.
+> `Mode: supervised` is enforced by scripts/tick.sh at completion time: it refuses
+> auto-tick and stops for human review. Use `loopable` only for low-risk, verifiable phases.
 
 ## Phase 1 — <goal>
 - [ ] task

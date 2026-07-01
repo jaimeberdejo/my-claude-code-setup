@@ -12,9 +12,7 @@
 #     --with-ci        also copy the CI workflow (.github/workflows/lean-stack-ci.yml).
 #                      Off by default — most projects already have their own CI.
 #
-# Tool meta-docs live under lean-stack/toolkit-docs/ and are NEVER copied into a target —
-# they document the toolkit, not your project. Exclusion is by DIRECTORY (not a hardcoded
-# filename list), so a new toolkit doc can't accidentally start shipping. The scaffold's own
+# The repo README documents the toolkit and is NEVER copied into a target. The scaffold's own
 # note ships as SCAFFOLD.md (so it can't become/clobber your README).
 #
 # Idempotent: re-running is safe. Without --force it skips any file that already exists,
@@ -69,7 +67,7 @@ copy_file() {
 
 # 1. Scaffold files (everything under lean-stack/, including dotfiles like .gitignore).
 #    EXCLUSIONS (by DIRECTORY, so they can't silently drift):
-#      - toolkit-docs/*  : tool meta-docs (GUIDE/LOOP-ENGINEERING) — never shipped
+#      - toolkit-docs/*  : legacy toolkit docs — never shipped if present in old checkouts
 #      - .github/*       : CI workflow is opt-in (--with-ci)
 #      - editor/OS cruft : .DS_Store / *.swp never copied into a target
 while IFS= read -r srcfile; do

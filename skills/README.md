@@ -4,7 +4,7 @@
 > picture and how these pair with the lean-stack scaffold.
 
 This is the **complete index of all 11 skills** — 7 workflow + 3 ownership + the installer
-meta-skill. (The ownership three also have a deeper writeup in [OWNERSHIP.md](OWNERSHIP.md).)
+meta-skill. (The three ownership skills have a deeper writeup in the [Ownership](#ownership) section below.)
 
 These are single-file each, no external dependencies. They encode workflows the base model
 doesn't reliably do unprompted. They're largely portable and stack-agnostic — they read
@@ -21,9 +21,9 @@ scaffold-aware, not fully stack-neutral.
 | **scope-guard** | workflow | finish a change | Flags out-of-scope edits, drive-by refactors, unexpected deletions. Verdict: IN SCOPE / SCOPE CREEP (report-only; can't edit) |
 | **explain-diff** | workflow | want a self-review | Summarizes what changed and, mainly, where it might be wrong (risks, assumptions, untested paths) (report-only; can't edit) |
 | **unstick** | workflow | are going in circles | Stops the thrash: restates the goal, names the shared failing assumption, proposes fresh hypotheses + the cheapest next test |
-| **teach-back** | ownership | finish a non-trivial phase | Claude explains what it built and quizzes you; gaps go to docs/STATE.md "Ownership gaps" (see OWNERSHIP.md) |
-| **mapme** | ownership | made big structural changes | Refreshes docs/ARCHITECTURE.md from the actual code (see OWNERSHIP.md) |
-| **quizme** | ownership | want to test understanding | Cold-opens a quiz on the codebase to measure how well you know it (see OWNERSHIP.md) |
+| **teach-back** | ownership | finish a non-trivial phase | Claude explains what it built and quizzes you; gaps go to docs/STATE.md "Ownership gaps" |
+| **mapme** | ownership | made big structural changes | Refreshes docs/ARCHITECTURE.md from the actual code |
+| **quizme** | ownership | want to test understanding | Cold-opens a quiz on the codebase to measure how well you know it |
 | **setup-lean-stack** | installer | scaffold a new repo | Runs install.sh then fills CLAUDE.md commands + high-stakes paths. **Global/installer-only** — not copied into per-project `.claude/skills/` |
 
 ## Design principles
@@ -74,3 +74,21 @@ scope-guard   →   explain-diff   →   ship-check
 (stayed on task)  (what's risky)     (verified + ready)
 ```
 Run that before any commit and most of what slips through review gets caught first.
+
+## Ownership
+Three skills — **teach-back**, **mapme**, **quizme** — exist so you actually understand code
+Claude helped build: enough to debug it, extend it, defend it in an interview, and (for regulated
+code) be accountable for it.
+
+**The principle: ownership comes from active recall, not passive reading.** A wall of generated
+comments or a giant wiki is something you trust *instead of* understand — the opposite of ownership.
+teach-back and quizme make *you* produce the explanation; that's what sticks.
+
+**The ritual that protects ownership** (already wired into the lean-stack scaffold — the session-start
+hook loads the ARCHITECTURE overview, and the ownership-nudge Stop hook reminds you to ADR + teach-back
+after code changes):
+```
+build a SMALL phase  →  teach-back (explain + quiz)  →  adr (record why)  →  /wrap
+...and every week or two:  quizme  (cold open, find the gaps)
+```
+Smaller phases + teach-back is the whole game: the less Claude builds before you engage, the more you keep.

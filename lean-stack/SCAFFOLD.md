@@ -5,14 +5,10 @@
 > project's README. Delete it once you've read it — your repo's README is yours.
 
 This is the self-contained quick-start for the lean Claude Code setup that was
-installed into this repo. The full tool documentation is **not** copied into your
+installed into this repo. The full toolkit README is **not** copied into your
 project (so it doesn't pollute it); read it on GitHub:
 
-- **GUIDE** — install, the per-phase cycle, use cases, autonomy, tutorials:
-  <https://github.com/jaimeberdejo/my-claude-code-setup/blob/master/lean-stack/toolkit-docs/GUIDE.md>
-- **LOOP-ENGINEERING** — designing/running autonomous loops safely:
-  <https://github.com/jaimeberdejo/my-claude-code-setup/blob/master/lean-stack/toolkit-docs/LOOP-ENGINEERING.md>
-- **Repo root (master guide):** <https://github.com/jaimeberdejo/my-claude-code-setup>
+- <https://github.com/jaimeberdejo/my-claude-code-setup>
 
 ## What got installed here
 - **CLAUDE.md** — lean constitution (edit the `<...>` placeholders). Includes the Ownership section.
@@ -31,7 +27,7 @@ The two required steps are `chmod` then `doctor.sh`:
 
     chmod +x .claude/hooks/*.sh scripts/*.sh
     # NOTE: don't blanket-set CLAUDE_CODE_SUBAGENT_MODEL=haiku — it OVERRIDES the
-    # evaluator's sonnet frontmatter and downgrades your grader. See the GUIDE §setup.
+    # evaluator's sonnet frontmatter and downgrades your grader. See the README setup notes.
     # ENABLE_TOOL_SEARCH is unverified against current docs — confirm before relying on it.
     bash scripts/doctor.sh        # verify tooling, scaffold, settings, hooks
     bash scripts/test-hooks.sh    # smoke-test the hooks
@@ -52,4 +48,4 @@ The autopilot loop has preflight checks, STRICT evaluator-verdict parsing, a hig
 gate, a shared secret-scan before any commit/push, and a per-phase thrash cap — run
 `doctor.sh` green before any unattended run. Note these are a deterministic best-effort
 layer, **not** an OS sandbox; for truly unattended runs use a no-creds/sandboxed
-environment (see the GUIDE's "Enforcement reality" section).
+environment (see the README's "Enforcement reality" section).

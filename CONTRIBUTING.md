@@ -9,8 +9,7 @@ what enforces vs what merely advises) and keep changes lean.
 There are three distinct things in this repo. Edits go to different places:
 
 - **The toolkit repo itself** — `README.md`, `CHANGELOG.md`, `VERSION`, `install.sh`,
-  `.github/`, and everything under `lean-stack/toolkit-docs/` (`GUIDE.md`,
-  `LOOP-ENGINEERING.md`). These document and ship the toolkit. **They are never copied into a
+  and `.github/`. These document and ship the toolkit. **They are never copied into a
   target project.**
 - **The `lean-stack/` scaffold** — the files that *do* get installed into a user's repo:
   `CLAUDE.md`, `SCAFFOLD.md`, `docs/`, `scripts/`, `.claude/` (hooks, commands, the
@@ -20,12 +19,11 @@ There are three distinct things in this repo. Edits go to different places:
 
 ## The "ship by directory" boundary — don't break it
 
-`install.sh` decides what ships by **directory**, not by a filename list. Toolkit docs are
-excluded because they live under `lean-stack/toolkit-docs/` (see the `case` in `install.sh`).
+`install.sh` decides what ships from the scaffold by **directory**, not by a generated file list.
 So:
 
-- **Put toolkit-only docs ONLY under `lean-stack/toolkit-docs/`.** A new doc dropped elsewhere
-  in `lean-stack/` will start shipping into every install — usually not what you want.
+- **Put toolkit-only docs at the repo root, not under `lean-stack/`.** A new doc dropped
+  inside `lean-stack/` will start shipping into every install — usually not what you want.
 - Anything a user's project genuinely needs goes in the scaffold proper. The scaffold's own
   note ships as `SCAFFOLD.md` (named so it can't clobber a user's `README.md`).
 - The install **smoke test** (`.github/scripts/install-smoke.sh`) asserts no tool-doc
@@ -83,7 +81,7 @@ a guard silently; if you're relaxing one on purpose, say so in the PR and the CH
   what ships into targets or to safety behavior.
 - Update `CHANGELOG.md` (the `[Unreleased]`/next-version section) for anything user-visible,
   and bump `VERSION` only when cutting a release.
-- Don't overstate guarantees in docs — match the honest tone in `SECURITY.md` and the GUIDE's
+- Don't overstate guarantees in docs — match the honest tone in `SECURITY.md` and the README's
   "Enforcement reality" section.
 
 By contributing you agree your work is licensed under the repo's [MIT License](LICENSE).

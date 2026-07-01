@@ -7,7 +7,7 @@
 # State persists in docs/ + git between iterations.
 #
 # Usage:
-#   bash scripts/autopilot.sh [COUNT] [--allow-dirty] [--no-worktree] [--pr] [--max-minutes N]
+#   bash scripts/autopilot.sh [COUNT] [--allow-dirty] [--no-worktree] [--pr]
 #     COUNT can be:
 #       N         run up to N phases   (e.g. 5  → "only 5")
 #       N-M       run up to M phases, aiming for at least N  (e.g. 3-5 → "from 3 to 5")
@@ -21,19 +21,14 @@
 #                      with the default worktree; nothing is ever pushed to your current
 #                      branch). A secret-scan gate runs before any push.
 #     --allow-dirty    skip the clean-tree preflight (commit/stash is otherwise required)
-#     --max-minutes N  wall-clock ceiling: stop before any iteration once N minutes
-#                      have elapsed. This is a convenience bound on TIME, not cost —
-#                      the real cost backstop is still your Claude Code / gateway
-#                      budget cap (see below).
 # Stop:    touch AGENT_STOP
 # Steer:   echo "use Decimal not float for money" > STEER.md
 #
 # Guardrails: preflight, max iterations, kill-switch, fresh context per loop,
 # independent evaluator with STRICT verdict parsing + evaluator-change cleanup,
-# per-phase thrash cap, optional wall-clock ceiling, the script as sole ticker,
-# high-stakes gate, shared secret-scan before commit/push, default worktree isolation.
-# Set a budget cap in your Claude Code / gateway config as the outer backstop —
-# that, not --max-minutes, is the authoritative ceiling on real cost.
+# per-phase thrash cap, the script as sole ticker, high-stakes gate, shared
+# secret-scan before commit/push, default worktree isolation. Set a budget cap in
+# your Claude Code / gateway config as the authoritative outer backstop on real cost.
 
 set -uo pipefail
 
@@ -44,24 +39,12 @@ ALLOW_DIRTY=0
 USE_WORKTREE=1         # isolation is the DEFAULT; --no-worktree opts out
 OPEN_PR=0
 HS_BLOCKED=0          # set to 1 if a high-stakes phase tripped the gate (never push it)
-MAX_MINUTES=0          # 0 = no wall-clock ceiling
-WANT_MAX_MINUTES=0     # set when the previous token was --max-minutes
 for arg in "$@"; do
-  if [ "$WANT_MAX_MINUTES" -eq 1 ]; then
-    if [[ "$arg" =~ ^[0-9]+$ ]] && [ "$arg" -gt 0 ]; then
-      MAX_MINUTES="$arg"
-    else
-      echo "autopilot: --max-minutes needs a positive integer (got '$arg')." >&2; exit 1
-    fi
-    WANT_MAX_MINUTES=0
-    continue
-  fi
   case "$arg" in
     --allow-dirty) ALLOW_DIRTY=1 ; continue ;;
     --worktree)    USE_WORKTREE=1 ; continue ;;            # explicit (already the default)
     --no-worktree) USE_WORKTREE=0 ; continue ;;            # opt out of isolation
     --pr)          OPEN_PR=1 ; continue ;;
-    --max-minutes) WANT_MAX_MINUTES=1 ; continue ;;        # next token is N
     all|max|ALL|MAX) MAX_ITER=50; UNBOUNDED=1 ; continue ;;  # advance as much as you can
   esac
   # Numeric COUNT forms — anchored validation; reject malformed loudly (no silent ignore).
@@ -71,7 +54,7 @@ for arg in "$@"; do
     MIN_TARGET="${arg%%-*}"; MAX_ITER="${arg##*-}"
   else
     echo "autopilot: unrecognized argument '$arg'." >&2
-    echo "  expected: N | N-M | all | --no-worktree | --worktree | --allow-dirty | --pr | --max-minutes N" >&2
+    echo "  expected: N | N-M | all | --no-worktree | --worktree | --allow-dirty | --pr" >&2
     exit 1
   fi
 done
@@ -239,11 +222,6 @@ SAME_PHASE_FAILS=0
 MAX_SAME_PHASE_FAILS=3
 
 for i in $(seq 1 "$MAX_ITER"); do
-  # Wall-clock ceiling (optional): stop before starting another iteration once the
-  # budget of minutes is spent. $SECONDS is bash's elapsed-runtime counter.
-  if [ "$MAX_MINUTES" -gt 0 ] && [ "$SECONDS" -ge $((MAX_MINUTES * 60)) ]; then
-    echo "autopilot: wall-clock ceiling reached (${MAX_MINUTES}m, elapsed $((SECONDS / 60))m) — stopping at iteration $i."; break
-  fi
   # Kill-switch: present in the worktree working dir OR the operator's original checkout.
   if [ -f AGENT_STOP ] || [ -f "$ORIG_ROOT/AGENT_STOP" ]; then
     echo "autopilot: AGENT_STOP present — stopping at iteration $i."; break

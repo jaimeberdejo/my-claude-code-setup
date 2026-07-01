@@ -7,7 +7,13 @@
 # Run from the repo root: bash scripts/test-hooks.sh
 
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 1
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
+cd "$ROOT" || exit 1
+# In the toolkit source repo, the installable scaffold lives under lean-stack/.
+# In an installed project, .claude/ and scripts/ live at the git root.
+if [ ! -d .claude ] && [ -d lean-stack/.claude ]; then
+  cd lean-stack || exit 1
+fi
 export CLAUDE_PROJECT_DIR="$PWD"
 
 FAILS=0
@@ -63,18 +69,21 @@ fi
 
 # Harder case: env var unset AND invoked from a SUBDIRECTORY. The brake must still fire
 # (resolve the repo root via `git rev-parse --show-toplevel`), not fail open.
-mkdir -p .ks-subdir-test
 (
   unset CLAUDE_PROJECT_DIR
+  t=$(mktemp -d) || exit 20
+  trap 'rm -rf "$t"' EXIT
+  mkdir -p "$t/.claude/hooks" "$t/subdir" || exit 21
+  cp .claude/hooks/kill-switch.sh "$t/.claude/hooks/" || exit 22
+  cd "$t" || exit 23
+  git init -q || exit 24
   touch AGENT_STOP
-  cd .ks-subdir-test || exit 99
-  printf '%s' '{"hook_event_name":"PreToolUse"}' | bash "$PWD/../.claude/hooks/kill-switch.sh" >/dev/null 2>&1
+  cd subdir || exit 25
+  printf '%s' '{"hook_event_name":"PreToolUse"}' | bash "$t/.claude/hooks/kill-switch.sh" >/dev/null 2>&1
   rc=$?
-  rm -f ../AGENT_STOP
   exit "$rc"
 )
 ks_sub_rc=$?
-rmdir .ks-subdir-test 2>/dev/null || true
 if [ "$ks_sub_rc" -eq 2 ]; then
   printf '  ✓ kill-switch fails closed from a subdir with CLAUDE_PROJECT_DIR unset\n'
 else
@@ -185,6 +194,51 @@ behav_steer() (
   exit 0
 )
 if behav_steer; then pass "steer: STEER.md → additionalContext JSON injected + consumed"; else fail "steer injection behavior (rc=$?)"; fi
+
+# session-start: only real roadmap task rows are reported; blockquotes/examples are ignored.
+behav_session_roadmap() (
+  set -uo pipefail
+  t=$(mktemp -d) || exit 20; trap 'rm -rf "$t"' EXIT
+  mkdir -p "$t/.claude/hooks" "$t/docs"
+  cp "$HROOT/.claude/hooks/session-start.sh" "$t/.claude/hooks/" || exit 22
+  cd "$t" || exit 21
+  git init -q && git config user.email t@t.t && git config user.name t
+  cat > docs/ROADMAP.md <<'EOF'
+# Roadmap
+> `- [ ]` = todo, example only.
+> - [ ] blockquoted example
+    - [ ] real indented task
+- [ ] real root task
+Inline `- [ ]` example.
+EOF
+  out=$(CLAUDE_PROJECT_DIR="$t" bash .claude/hooks/session-start.sh 2>/dev/null)
+  printf '%s\n' "$out" | grep -q 'real indented task' || exit 1
+  printf '%s\n' "$out" | grep -q 'real root task' || exit 2
+  printf '%s\n' "$out" | grep -q 'blockquoted example' && exit 3
+  printf '%s\n' "$out" | grep -q 'todo, example only' && exit 4
+  printf '%s\n' "$out" | grep -q 'Inline `- \[ \]` example' && exit 5
+  exit 0
+)
+if behav_session_roadmap; then pass "session-start: open roadmap extraction ignores examples/blockquotes"; else fail "session-start roadmap extraction (rc=$?)"; fi
+
+# session-start: NEXT_FINDINGS.md is capped in hot-path context and points to the full file.
+behav_session_findings_cap() (
+  set -uo pipefail
+  t=$(mktemp -d) || exit 20; trap 'rm -rf "$t"' EXIT
+  mkdir -p "$t/.claude/hooks" "$t/docs"
+  cp "$HROOT/.claude/hooks/session-start.sh" "$t/.claude/hooks/" || exit 22
+  cd "$t" || exit 21
+  git init -q && git config user.email t@t.t && git config user.name t
+  i=1
+  while [ "$i" -le 80 ]; do printf 'finding line %02d\n' "$i"; i=$((i+1)); done > NEXT_FINDINGS.md
+  out=$(CLAUDE_PROJECT_DIR="$t" bash .claude/hooks/session-start.sh 2>/dev/null)
+  printf '%s\n' "$out" | grep -q 'NEXT_FINDINGS.md; showing last 60 lines' || exit 1
+  printf '%s\n' "$out" | grep -q 'finding line 80' || exit 2
+  printf '%s\n' "$out" | grep -q 'finding line 01' && exit 3
+  printf '%s\n' "$out" | grep -q 'read NEXT_FINDINGS.md for the full findings' || exit 4
+  exit 0
+)
+if behav_session_findings_cap; then pass "session-start: NEXT_FINDINGS.md output is capped with file pointer"; else fail "session-start findings cap (rc=$?)"; fi
 
 # format-on-edit: reformats a messy .py without changing its meaning (skipped if ruff absent).
 behav_format() (

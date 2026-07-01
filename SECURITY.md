@@ -28,9 +28,9 @@ and hardening ideas are welcome as normal public issues or PRs (see
 
 **What this project tries to do:** ship deterministic shell hooks, a headless-loop control
 flow, and sensible defaults that make a *good* automated run likely and a *bad* one loud.
-Read the GUIDE's ["Enforcement reality"](lean-stack/toolkit-docs/GUIDE.md#enforcement-reality-deterministic-layer-vs-advisory-layer)
-section — the deterministic layer (hooks + `autopilot.sh`) fails closed; the advisory layer
-(`CLAUDE.md`, `rules/`, the evaluator prompt) only *asks* a model to comply.
+Read the README's "Enforcement reality" section — the deterministic layer (hooks +
+`autopilot.sh`) fails closed; the advisory layer (`CLAUDE.md`, `rules/`, the evaluator
+prompt) only *asks* a model to comply.
 
 **What it explicitly does NOT guarantee — your responsibility:**
 

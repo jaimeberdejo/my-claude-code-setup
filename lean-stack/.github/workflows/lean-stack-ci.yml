@@ -41,18 +41,5 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y shellcheck
           shellcheck -S warning .claude/hooks/*.sh .claude/lib/*.sh scripts/*.sh || true
 
-      - name: Hook + behavioral guard tests
-        run: |
-          git config user.email ci@example.com
-          git config user.name ci
-          chmod +x .claude/hooks/*.sh scripts/*.sh
-          bash scripts/test-hooks.sh
-          bash scripts/test-high-stakes.sh
-          bash scripts/test-secret-scan.sh
-          bash scripts/test-checkpoint.sh
-          bash scripts/test-autopilot-gates.sh
-          bash scripts/test-tick.sh
-          bash scripts/test-docs-invariants.sh
-          bash scripts/test-close-milestone.sh
-          bash scripts/test-doctor.sh
-          bash scripts/test-lint.sh
+      - name: Hook + behavioral guard tests (single shared list — scripts/run-guard-tests.sh)
+        run: bash scripts/run-guard-tests.sh

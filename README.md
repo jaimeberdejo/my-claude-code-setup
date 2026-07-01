@@ -31,7 +31,7 @@ Then: edit `CLAUDE.md` (your test/lint/run commands) → point `HIGH_STAKES_RE` 
 `roadmap` skill → build with `/phase`. New to it all? Work through `PRACTICE-PROJECT.md` first.
 
 > **Two parts, how they relate:** the **`lean-stack/` scaffold** (hooks, commands, docs layout,
-> autopilot) and the **`skills/` pack** (11 portable skills). Skills work standalone, but several
+> autopilot) and the **`skills/` pack** (11 skills; 10 are copied per-project). Skills work standalone, but several
 > (`roadmap`, `ship-check`, `adr`, …) assume the scaffold's `docs/` layout — install both for the
 > full experience.
 
@@ -48,7 +48,6 @@ my-claude-code-setup/
 ├── lean-stack/            ← the scaffold you drop into a repo
 │   ├── CLAUDE.md                    # lean constitution (edit placeholders per project)   [installed]
 │   ├── SCAFFOLD.md                  # scaffold quick-start (ships as SCAFFOLD.md, never clobbers README) [installed]
-│   ├── toolkit-docs/                # GUIDE.md · LOOP-ENGINEERING.md    [toolkit docs — excluded from installs BY DIRECTORY]
 │   ├── docs/                        # SPEC · ROADMAP · STATE · ARCHITECTURE · decisions/ · plans/
 │   ├── scripts/                     # autopilot.sh · doctor.sh · test-hooks.sh
 │   ├── .github/workflows/lean-stack-ci.yml   # OPT-IN CI (install.sh --with-ci)
@@ -57,14 +56,12 @@ my-claude-code-setup/
 │       ├── commands/                # /resume /wrap /phase /autopilot
 │       ├── agents/evaluator.md      # independent grader
 │       ├── rules/high-stakes.md     # path-scoped extra care
-│       └── hooks/                   # 7 deterministic shell hooks + 2 shared libs (_secret-scan, _high-stakes)
-└── skills/                ← 11 portable skills (10 workflow/ownership + setup-lean-stack)
+│       └── hooks/                   # 7 deterministic shell hooks + 3 shared libs (_secret-scan, _high-stakes, _test-cmd)
+└── skills/                ← 11 skills (10 portable + setup-lean-stack installer)
 ```
 
-> The repo-root `README.md` and everything under `lean-stack/toolkit-docs/` (`GUIDE.md`,
-> `LOOP-ENGINEERING.md`) document the **toolkit**, so `install.sh` never copies them into your
-> project — exclusion is by directory, so adding a toolkit doc can't accidentally start shipping.
-> Only `SCAFFOLD.md` — a short, clearly-named quick-start — ships alongside the working files.
+> The repo-root `README.md` documents the **toolkit**, so `install.sh` never copies it into your
+> project. Only `SCAFFOLD.md` — a short, clearly-named quick-start — ships alongside the working files.
 
 There are **two parts**: the **`lean-stack/` scaffold** (drop its contents into any repo)
 and the **`skills/` pack** (copy any skill into `.claude/skills/` per-project, or
@@ -102,8 +99,8 @@ bash ~/my-claude-code-setup/install.sh /path/to/your-repo
 `install.sh` does the **deterministic** part: copies the scaffold, copies all skills into
 `.claude/skills/`, `chmod +x`s the hooks/scripts, and runs `doctor.sh`. It's **idempotent** —
 re-running skips files that already exist, so it never clobbers a `CLAUDE.md` you've
-customized. It does **not** copy the toolkit docs (GUIDE/LOOP-ENGINEERING/README) into your
-project. Flags: `--force` (overwrite existing files), `--global-skills` (also install the
+customized. It does **not** copy the toolkit README into your project. Flags: `--force`
+(overwrite existing files), `--global-skills` (also install the
 skills into `~/.claude/skills/` for all projects), `--with-ci` (also drop the opt-in
 `lean-stack-ci.yml` CI workflow).
 
@@ -125,7 +122,7 @@ After any option: edit `CLAUDE.md`'s placeholders (your real commands) if the sk
 then describe the project → `docs/SPEC.md`, run the `roadmap` skill → `docs/ROADMAP.md`, and loop.
 
 > **Why a script and not an "init" skill that writes the files?** Copying static files must
-> be deterministic — having a model regenerate ~40 files risks drift, costs tokens, and is
+> be deterministic — having a model regenerate the scaffold's files risks drift, costs tokens, and is
 > the exact bug this setup avoids elsewhere. So `install.sh` owns the copy; the skill only
 > owns the judgment (filling placeholders). Deterministic work stays deterministic.
 
@@ -170,22 +167,29 @@ You drive each arrow manually for stakes that warrant it, or hand the bracket to
 
 ## Hooks (deterministic shell — not all enforce; see Enforcement reality)
 
-Seven deterministic shell hooks (session-start, steer, kill-switch, format-on-edit, test-gate,
-commit-on-stop, ownership-nudge) plus two sourced libraries (`_secret-scan.sh`,
-`_high-stakes.sh`) shared by `commit-on-stop.sh` and `autopilot.sh`. **The full per-hook table
-lives in [`lean-stack/toolkit-docs/GUIDE.md`](lean-stack/toolkit-docs/GUIDE.md)** under "The seven hooks" (single source —
-kept there so it can't drift), alongside the **"Enforcement reality"** section on what enforces
-vs what merely advises.
+Seven deterministic shell hooks plus three shared libs:
+
+| Hook | Event | Role |
+|---|---|---|
+| `session-start.sh` | start/resume/clear/compact | Injects capped state: `STATE`, open roadmap tasks, findings pointer, architecture overview, recent commits. |
+| `steer.sh` | prompt/tool | If `STEER.md` exists, injects it once as additional context and removes it. |
+| `kill-switch.sh` | every tool call | Blocks tools when `AGENT_STOP` exists. |
+| `format-on-edit.sh` | after edits | Best-effort format-only pass for touched Python/JS/TS files. |
+| `test-gate.sh` | stop | Optional green-suite gate via `LEAN_TEST_GATE=warn|block`; default is off. |
+| `commit-on-stop.sh` | stop | Auto-checkpoint dirty work after a staged secret scan. |
+| `ownership-nudge.sh` | stop | Reminds you to ADR / teach-back / map architecture after code changes. |
+
+`_secret-scan.sh`, `_high-stakes.sh`, and `_test-cmd.sh` are sourced libraries, not hooks.
 
 ## Skills (`skills/`)
 
-Six workflow skills (roadmap, adr, ship-check, scope-guard, explain-diff, unstick), three
-ownership skills (teach-back, mapme, quizme), and the `setup-lean-stack` meta-skill. The three
+Seven workflow skills (roadmap, milestone, adr, ship-check, scope-guard, explain-diff, unstick),
+three ownership skills (teach-back, mapme, quizme), and the `setup-lean-stack` meta-skill. The three
 review skills are **report-only** (`disallowed-tools: Edit, Write, …`); a clean pre-commit chain
 is **`scope-guard → explain-diff → ship-check`**.
 
-**The full skills catalog lives in [`skills/README.md`](skills/README.md)** (workflow) and
-**[`skills/OWNERSHIP.md`](skills/OWNERSHIP.md)** (ownership) — single source, so this list never
+**The full skills catalog lives in [`skills/README.md`](skills/README.md)** (workflow + ownership,
+including the [Ownership](skills/README.md#ownership) writeup) — single source, so this list never
 drifts from it.
 
 ---
@@ -198,19 +202,18 @@ Three ways to run, in order of trust:
 |---|---|---|
 | Manual | `/phase`, you review each diff | medium stakes, your daily default |
 | Watchable loop | `/autopilot N` (in-session) | a few phases you want to *see* run |
-| Headless loop | `bash scripts/autopilot.sh N [--no-worktree] [--pr] [--allow-dirty] [--max-minutes N]` | long/overnight, low-stakes, reversible |
+| Headless loop | `bash scripts/autopilot.sh N [--no-worktree] [--pr] [--allow-dirty]` | long/overnight, low-stakes, reversible |
 
 `scripts/autopilot.sh` accepts `N` (up to N), `N-M` (aim for N, cap M), or `all` (malformed
 counts are rejected, not ignored). **Worktree isolation is the default** — a bad run can't touch
 your checkout; `--no-worktree` opts out (runs in-place, warned loudly). `--pr` opens a PR at the
 end and never touches main (secret-scanned before any push); `--allow-dirty` skips the clean-tree
-preflight (use sparingly — it removes a safety check); `--max-minutes N` adds a wall-clock ceiling.
+preflight (use sparingly — it removes a safety check).
 
-**The guardrails** (see `lean-stack/toolkit-docs/LOOP-ENGINEERING.md` for the full theory):
-verifiable signal · bounded stop · bounded retries (3-strike thrash cap) · blast-radius
-limit · **independent verifier as the sole roadmap-ticker** · evaluator-change cleanup ·
-**high-stakes gate** (auth/money/migrations → supervised stop, never auto-ticked) ·
-secret-scan before commit/push · kill-switch · budget cap.
+**The guardrails:** verifiable signal · bounded stop · bounded retries (3-strike thrash cap) ·
+blast-radius limit · independent verifier before roadmap ticking · evaluator-change cleanup in
+the headless script · high-stakes gate (auth/money/migrations → supervised stop, never
+auto-ticked) · secret-scan before commit/push · kill-switch · budget cap.
 
 **Which guarantees are deterministic depends on the mode.** The *headless* `scripts/autopilot.sh`
 is the only mode where the script is the **sole roadmap-ticker**: it snapshots and discards the
@@ -225,12 +228,10 @@ when you want the deterministic guarantees; use the in-session modes when you're
 
 ## Security
 
-**Enforcement reality — know which tier you're trusting** (full version in
-[`GUIDE.md` → "Enforcement reality"](lean-stack/toolkit-docs/GUIDE.md#enforcement-reality-deterministic-layer-vs-advisory-layer)):
-the **deterministic** layer (shell hooks + `autopilot.sh` control flow — kill-switch, strict
-verdict parsing, secret-scan, high-stakes gate, evaluator-change cleanup) actually enforces and
-fails closed; the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a
-model to comply.
+**Enforcement reality — know which tier you're trusting:** the **deterministic** layer
+(shell hooks + `autopilot.sh` control flow — kill-switch, strict verdict parsing,
+secret-scan, high-stakes gate, evaluator-change cleanup) actually enforces and fails closed;
+the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a model to comply.
 
 - `.gitignore` stops *committing* `.env`; it does **not** stop *reading* it. `settings.json`
   ships a `permissions.deny` block for `.env*`, `secrets/**`, `*.pem`, `*.key`, credentials.
@@ -257,6 +258,26 @@ model to comply.
   (`.github/scripts/install-smoke.sh`: no tool-doc pollution, no README clobber, idempotent,
   `.gitignore` merge). The scaffold's own `lean-stack-ci.yml` is opt-in for installed projects.
 
+## Loop engineering notes
+
+Autonomy is useful only when the loop has an external signal. Prefer phases with a command,
+test, eval threshold, or observable output that a fresh reviewer can verify. If a phase cannot
+be checked mechanically, mark it `Mode: supervised` and do it by hand.
+
+`Mode: supervised` is enforced by `scripts/tick.sh`: a phase can still be built and graded, but
+the shared completion gate refuses to auto-tick it and exits for human review. This complements
+the high-stakes path/content gate in `_high-stakes.sh`; it does not replace careful path tuning.
+
+Use the lightest mode that fits the risk:
+
+| Work | Mode |
+|---|---|
+| tiny, reversible, obvious | Just prompt Claude directly. |
+| normal feature work | `/phase`, review, then `/wrap`. |
+| a few low-risk phases you want to watch | `/autopilot N`. |
+| long low-risk mechanical work | `scripts/autopilot.sh N` in a clean, no-credentials environment. |
+| auth, money, migrations, deletes, deploy/email/webhook effects | Supervised only, `permission_mode: default`, no unattended loop. |
+
 ---
 
 ## Troubleshooting
@@ -274,9 +295,6 @@ model to comply.
 
 ## Where to read more
 
-- **`lean-stack/toolkit-docs/GUIDE.md`** — the full manual: install, the per-phase research→plan→execute→verify
-  cycle, five worked use cases, autonomy in depth, and step-by-step tutorials.
-- **`lean-stack/toolkit-docs/LOOP-ENGINEERING.md`** — designing and running autonomous loops safely (the theory).
 - **`PRACTICE-PROJECT.md`** — a standalone, throwaway tutorial to learn the whole stack hands-on,
   then delete. Lives at the repo root so `install.sh` never copies it into your real projects.
 

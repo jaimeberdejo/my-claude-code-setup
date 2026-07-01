@@ -15,8 +15,12 @@ echo "=== PROJECT STATE (auto-injected) ==="
 
 # Previous evaluator findings take priority — address these before new work.
 if [ -f NEXT_FINDINGS.md ]; then
-  echo "--- ⚠ Previous evaluator findings (address before selecting new roadmap work) ---"
-  cat NEXT_FINDINGS.md
+  echo "--- Previous evaluator findings (NEXT_FINDINGS.md; showing last 60 lines) ---"
+  tail -60 NEXT_FINDINGS.md
+  total_lines=$(wc -l < NEXT_FINDINGS.md 2>/dev/null || echo 0)
+  if [ "${total_lines:-0}" -gt 60 ] 2>/dev/null; then
+    echo "(truncated — read NEXT_FINDINGS.md for the full findings)"
+  fi
   echo ""
 fi
 
@@ -39,7 +43,7 @@ if [ -f docs/ROADMAP.md ]; then
   echo "--- Open roadmap items ---"
   # Capture first (head closing the pipe would SIGPIPE grep and, with a trailing `|| echo`,
   # spuriously print "(none)" right after listing items). Decide from the captured text.
-  OPEN_ITEMS=$(grep -n "\- \[ \]" docs/ROADMAP.md 2>/dev/null | head -20)
+  OPEN_ITEMS=$(grep -n "^[[:space:]]*- \[ \] " docs/ROADMAP.md 2>/dev/null | head -20)
   if [ -n "$OPEN_ITEMS" ]; then printf '%s\n' "$OPEN_ITEMS"; else echo "(none — roadmap complete or empty)"; fi
 fi
 

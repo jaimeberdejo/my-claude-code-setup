@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install-smoke.sh — prove install.sh produces a CLEAN target install:
-#   - tool meta-docs (GUIDE/LOOP-ENGINEERING/README) are NOT copied
+#   - toolkit README / legacy tool meta-docs are NOT copied
 #   - SCAFFOLD.md IS copied (and never lands as the target's README.md)
 #   - a pre-existing target README.md is never clobbered
 #   - the CI workflow is absent by default, present with --with-ci
@@ -32,7 +32,7 @@ README_BEFORE="$(cat README.md)"
 
 bash "$REPO/install.sh" . >/dev/null 2>&1 || bad "install.sh exited non-zero"
 
-# Tool meta-docs must be absent — neither the files nor the toolkit-docs/ dir ship.
+# Tool meta-docs must be absent — neither the files nor the legacy toolkit-docs/ dir ship.
 for d in GUIDE.md LOOP-ENGINEERING.md toolkit-docs/GUIDE.md toolkit-docs/LOOP-ENGINEERING.md; do
   [ -e "$d" ] && bad "tool-doc $d was copied (should be excluded)" || ok "$d not copied"
 done

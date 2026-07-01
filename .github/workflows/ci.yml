@@ -47,21 +47,9 @@ jobs:
         working-directory: lean-stack
         run: jq empty .claude/settings.json
 
-      - name: Behavioral guard tests (high-stakes, secret-scan, autopilot gates, checkpoint, hooks)
+      - name: Behavioral guard tests (single shared list — scripts/run-guard-tests.sh)
         working-directory: lean-stack
-        run: |
-          set -e
-          git config --global user.email ci@example.com
-          git config --global user.name ci
-          bash scripts/test-high-stakes.sh
-          bash scripts/test-secret-scan.sh
-          bash scripts/test-autopilot-gates.sh
-          bash scripts/test-tick.sh
-          bash scripts/test-docs-invariants.sh
-          bash scripts/test-close-milestone.sh
-          bash scripts/test-doctor.sh
-          bash scripts/test-lint.sh
-          bash scripts/test-checkpoint.sh
+        run: bash scripts/run-guard-tests.sh
 
       - name: Install smoke test (clean target, idempotency, ship-by-directory)
         run: |
