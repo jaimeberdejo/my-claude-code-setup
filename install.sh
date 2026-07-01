@@ -160,8 +160,15 @@ echo "  2. Point .claude/rules/high-stakes.md 'paths:' at your sensitive dirs."
 echo "  3. Describe the project → docs/SPEC.md, run the 'roadmap' skill → docs/ROADMAP.md."
 echo ""
 
-# 5. Health check (don't fail the install if the target isn't a git repo yet).
+# 5. Health check. doctor.sh assumes a git repo (it verifies git-tracked guarantees), so only
+#    run it when the target actually is one — otherwise "not a git repo yet" is expected, not a
+#    problem, and shouldn't be reported as one.
 if [ -x "$TARGET/scripts/doctor.sh" ]; then
-  echo "install: running doctor.sh ..."
-  ( cd "$TARGET" && bash scripts/doctor.sh ) || echo "install: doctor reported issues above (often just 'not a git repo yet' — run 'git init')."
+  if ( cd "$TARGET" && git rev-parse --is-inside-work-tree >/dev/null 2>&1 ); then
+    echo "install: running doctor.sh ..."
+    ( cd "$TARGET" && bash scripts/doctor.sh ) || echo "install: doctor reported issues above — address them before an unattended run."
+  else
+    echo "install: complete. Skipping doctor because the target is not a git repo yet."
+    echo "install:   run 'git init', then 'bash scripts/doctor.sh'."
+  fi
 fi
