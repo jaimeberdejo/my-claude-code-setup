@@ -277,7 +277,7 @@ decides whether that PASS is allowed to become a tick.
 | `format-on-edit.sh` | after Write/Edit | **Formats only** the touched file (ruff format / prettier). Deliberately no `lint --fix` — autofixers can change semantics silently. |
 | `test-gate.sh` | turn end (opt-in) | `LEAN_TEST_GATE=warn\|block` runs the suite, writes `test-results.json`, blocks on red in `block` mode. |
 | `commit-on-stop.sh` | turn end | Honest git checkpoint (only claims success when a commit happened). Runs the shared **secret-scan** and refuses — fails closed — to commit credentials. |
-| `ownership-nudge.sh` | turn end | After code changes, nudges: ADR the decision, run teach-back, run the `mapme` skill. |
+| `ownership-nudge.sh` | turn end | After code changes, nudges: ADR the decision, run teach-back, run the `mapme` skill. Also nudges to update `docs/STATE.md` when a change happened outside an active phase (no `.claude/.phase-ready`) — the quick-fix path that skips `/phase`/`/wrap` otherwise leaves STATE.md silently stale. |
 
 > **Three sourced libraries**, not event hooks: `_secret-scan.sh` (filename+content secret scan),
 > `_high-stakes.sh` (the high-stakes path list + content matcher), and `_test-cmd.sh` (test-command

@@ -188,7 +188,7 @@ Seven deterministic shell hooks plus three shared libs:
 | `format-on-edit.sh` | after edits | Best-effort format-only pass for touched Python/JS/TS files. |
 | `test-gate.sh` | stop | Optional green-suite gate via `LEAN_TEST_GATE=warn|block`; default is off. |
 | `commit-on-stop.sh` | stop | Auto-checkpoint dirty work after a staged secret scan. |
-| `ownership-nudge.sh` | stop | Reminds you to ADR / teach-back / map architecture after code changes. |
+| `ownership-nudge.sh` | stop | Reminds you to ADR / teach-back / map architecture after code changes. Also flags when a change happened outside an active phase, so `docs/STATE.md` doesn't silently go stale. |
 
 `_secret-scan.sh`, `_high-stakes.sh`, and `_test-cmd.sh` are sourced libraries, not hooks.
 

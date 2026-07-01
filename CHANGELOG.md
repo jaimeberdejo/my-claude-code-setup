@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **`ownership-nudge.sh` now flags quick fixes that happened outside an active roadmap phase.**
+  `docs/STATE.md`'s prose is normally only touched by `/wrap`, `/phase`, or `tick.sh`'s auto-block —
+  a tiny, no-ceremony fix prompted directly touches none of those, so STATE.md could silently go
+  stale while `session-start.sh` kept re-injecting outdated "where we are" context. The hook now
+  checks for `.claude/.phase-ready`'s absence (no phase in flight) alongside a real change, and
+  nudges you to add a one-line STATE.md note if it matters — advisory only, never blocks, same
+  ceremony-to-stakes rule as everywhere else. (`scripts/test-hooks.sh`)
+
 ## [2.0.0] — 2026-07-02 — Jaimitos OS rename + automation hardening
 
 ### Changed — BREAKING: renamed "the Lean Stack" to "Jaimitos OS"

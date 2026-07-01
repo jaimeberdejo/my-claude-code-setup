@@ -37,6 +37,18 @@ if grep -qE '\.(py|ts|tsx|js|jsx|go|rs)$' <<<"$CHANGED"; then
   echo "  • Big change? run the mapme skill to refresh docs/ARCHITECTURE.md."
 fi
 
+# Quick-fix drift check: docs/STATE.md's prose is only ever touched by /wrap, /phase (its
+# "built, awaiting grade" line), or tick.sh's auto-block — none of which run for a tiny,
+# no-ceremony fix prompted directly. Absence of .claude/.phase-ready means no phase is
+# currently in flight, so if something still changed this turn, it happened outside the
+# roadmap loop and STATE.md may now be describing stale "where we are" context that
+# session-start.sh will keep re-injecting. Advisory only — never blocks, matches the
+# ceremony-to-stakes rule for tiny/reversible work.
+if [ -n "$CHANGED" ] && [ ! -f .claude/.phase-ready ] && [ -f docs/STATE.md ]; then
+  echo "↳ this change happened outside an active roadmap phase — if it changes \"where we"
+  echo "  are,\" add a one-line note to docs/STATE.md so the next session isn't reading stale state."
+fi
+
 # Clean up the breadcrumb so a later no-op Stop doesn't re-nudge stale changes.
 rm -f .claude/.last-changed 2>/dev/null || true
 exit 0

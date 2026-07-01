@@ -277,6 +277,33 @@ behav_testgate() (
 )
 if behav_testgate; then pass "test-gate: block exit2 on red, warn exit0, off no-run, block+green pass"; else fail "test-gate mode behavior (rc=$?)"; fi
 
+# ownership-nudge: a change outside an active phase (.phase-ready absent) nudges to update
+# docs/STATE.md; the same change WITH an active phase in flight does NOT (that's /phase's own
+# job to update STATE.md, not this hook's).
+behav_ownership_state_nudge() (
+  set -uo pipefail
+  t=$(mktemp -d) || exit 20; trap 'rm -rf "$t"' EXIT
+  mkdir -p "$t/.claude/hooks" "$t/docs"
+  cp "$HROOT/.claude/hooks/ownership-nudge.sh" "$t/.claude/hooks/" || exit 22
+  cd "$t" || exit 21
+  git init -q && git config user.email t@t.t && git config user.name t
+  printf 'next: whatever\n' > docs/STATE.md
+  git add -A && git commit -qm init
+
+  # 1) no .phase-ready, a change happened (breadcrumb present) → nudge appears.
+  echo 'src/a.py' > .claude/.last-changed
+  out=$(printf '%s' '{"stop_hook_active":false}' | CLAUDE_PROJECT_DIR="$t" bash .claude/hooks/ownership-nudge.sh 2>/dev/null)
+  printf '%s\n' "$out" | grep -q 'outside an active roadmap phase' || exit 1
+
+  # 2) an active phase IS in flight (.phase-ready present) → no STATE.md nudge for this.
+  echo 'src/a.py' > .claude/.last-changed
+  echo '## Phase 1 — X' > .claude/.phase-ready
+  out=$(printf '%s' '{"stop_hook_active":false}' | CLAUDE_PROJECT_DIR="$t" bash .claude/hooks/ownership-nudge.sh 2>/dev/null)
+  printf '%s\n' "$out" | grep -q 'outside an active roadmap phase' && exit 2
+  exit 0
+)
+if behav_ownership_state_nudge; then pass "ownership-nudge: nudges docs/STATE.md update only for changes outside an active phase"; else fail "ownership-nudge STATE.md drift check (rc=$?)"; fi
+
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All hook smoke + behavioral tests passed."; exit 0
 else echo "$FAILS hook test(s) failed."; exit 1; fi
