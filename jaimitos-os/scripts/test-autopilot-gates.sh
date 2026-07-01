@@ -191,6 +191,18 @@ grep -q "stale lock" "$WORK/out" && pass "stale lock (dead pid) is reclaimed" ||
 ticked "$REPO" && pass "run proceeds after reclaiming a stale lock" || fail "did not proceed after stale lock"
 [ ! -f "$REPO/.claude/.autopilot.lock" ] && pass "lock released on normal exit (trap)" || fail "lock not released after run"
 
+# 12 — the `roadmap` skill's own legend line ("`- [ ]` = todo, `- [x]` = done...") is permanent
+# in every roadmap it generates. A plain substring grep for "- [ ]" matches INSIDE that line
+# even when every real task is already ticked, so the preflight "nothing to do" check must be
+# anchored to actual list-item lines, not fooled into thinking open work remains forever.
+mkrepo r12
+printf '> `- [ ]` = todo, `- [x]` = done. The /phase command and hooks read these.\n\n## Phase 1 — Work\n\n- [x] do the work\n' > "$REPO/docs/ROADMAP.md"
+( cd "$REPO" && git add -A && git commit -q -m "all done" )
+BUILDER_MODE=clean EVAL_MODE=pass; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --no-worktree --allow-dirty)
+{ [ "$rc" = 0 ] && grep -q "roadmap has no open items" "$WORK/out"; } \
+  && pass "roadmap-skill legend line doesn't fool the 'nothing to do' preflight" \
+  || fail "legend line made autopilot think open work remains (rc=$rc)"
+
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All autopilot gate tests passed."; exit 0
 else echo "$FAILS gate test(s) FAILED."; echo "--- last run output ---"; tail -n 25 "$WORK/out" 2>/dev/null; exit 1; fi

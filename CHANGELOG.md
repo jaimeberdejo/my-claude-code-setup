@@ -6,6 +6,24 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **`close-milestone.sh` and `autopilot.sh` no longer mistake the `roadmap` skill's own
+  legend line for an open task.** Every roadmap the `roadmap` skill generates permanently
+  carries the line `` > `- [ ]` = todo, `- [x]` = done. ... `` near the top. A plain substring
+  grep for `- [ ]` (or `- [x]`) matched *inside* that instructional text too, since it wasn't
+  anchored to real list-item lines. Concretely this meant: `close-milestone.sh` could **never**
+  successfully close a milestone generated the documented way (`grep -q '\- \[ \]'` always found
+  a "match," always refusing with "open items remain"); and `autopilot.sh`'s own "roadmap has no
+  open items — nothing to do" preflight and its in-loop "roadmap complete" check were equally
+  fooled, never correctly recognizing a fully-ticked roadmap as done. Found via real usage
+  (`/milestone` on a live project), not synthetic testing — the existing test fixtures never
+  included the legend line, which is why it slipped through. Anchored all four call sites to
+  `^[[:space:]]*- \[ \] ` (matching the pattern `session-start.sh` already used correctly).
+  New regression tests in `test-close-milestone.sh` and `test-autopilot-gates.sh` use the real
+  legend-line format so this can't silently regress. (`tick.sh` was already safe — its own
+  open-item count is a before/after *differential*, not an absolute check, so the legend line's
+  constant match cancels out.)
+
 ### Added
 - **`ownership-nudge.sh` now flags quick fixes that happened outside an active roadmap phase.**
   `docs/STATE.md`'s prose is normally only touched by `/wrap`, `/phase`, or `tick.sh`'s auto-block —

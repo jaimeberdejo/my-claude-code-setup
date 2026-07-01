@@ -28,8 +28,12 @@ done
 refuse() { echo "close-milestone: REFUSED — $1" >&2; exit 1; }
 
 [ -f "$ROADMAP" ] || refuse "no $ROADMAP to close."
-grep -qE '\- \[[ xX]\]' "$ROADMAP" 2>/dev/null || refuse "no phases in $ROADMAP — nothing to close."
-grep -q '\- \[ \]' "$ROADMAP" 2>/dev/null && refuse "open items remain in $ROADMAP — finish or remove them first."
+# Anchored to actual list-item lines (start of line, optional leading whitespace) — a plain
+# substring grep also matches the roadmap skill's own instructional legend line
+# ("> `- [ ]` = todo, `- [x]` = done. ..."), which is permanently present at the top of every
+# roadmap it generates and would otherwise ALWAYS false-positive as "open items remain."
+grep -qE '^[[:space:]]*- \[[ xX]\] ' "$ROADMAP" 2>/dev/null || refuse "no phases in $ROADMAP — nothing to close."
+grep -qE '^[[:space:]]*- \[ \] ' "$ROADMAP" 2>/dev/null && refuse "open items remain in $ROADMAP — finish or remove them first."
 [ -f NEXT_FINDINGS.md ] && refuse "NEXT_FINDINGS.md exists (an unresolved evaluator finding) — resolve it first."
 
 # Pick the archive label.

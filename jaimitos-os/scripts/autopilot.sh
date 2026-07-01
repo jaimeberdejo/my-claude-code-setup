@@ -126,7 +126,7 @@ fi
 if [ "$OPEN_PR" -eq 1 ] && ! command -v gh >/dev/null 2>&1; then
   fail "--pr requested but 'gh' (GitHub CLI) is not installed."
 fi
-if ! grep -q "\- \[ \]" docs/ROADMAP.md 2>/dev/null; then
+if ! grep -qE "^[[:space:]]*- \[ \] " docs/ROADMAP.md 2>/dev/null; then
   echo "autopilot: roadmap has no open items. Nothing to do."; exit 0
 fi
 
@@ -226,7 +226,7 @@ for i in $(seq 1 "$MAX_ITER"); do
   if [ -f AGENT_STOP ] || [ -f "$ORIG_ROOT/AGENT_STOP" ]; then
     echo "autopilot: AGENT_STOP present — stopping at iteration $i."; break
   fi
-  grep -q "\- \[ \]" docs/ROADMAP.md 2>/dev/null || { echo "autopilot: roadmap complete. Done."; break; }
+  grep -qE "^[[:space:]]*- \[ \] " docs/ROADMAP.md 2>/dev/null || { echo "autopilot: roadmap complete. Done."; break; }
 
   # STEER mirror: operators write STEER.md in their ORIGINAL checkout, but the loop
   # runs in the worktree. Move it in so the builder (which reads ./STEER.md) sees it.
@@ -234,7 +234,7 @@ for i in $(seq 1 "$MAX_ITER"); do
     mv "$ORIG_ROOT/STEER.md" ./STEER.md 2>/dev/null || true
   fi
 
-  OPEN_SIGNATURE=$(grep -n "\- \[ \]" docs/ROADMAP.md 2>/dev/null | { md5 2>/dev/null || md5sum 2>/dev/null; })
+  OPEN_SIGNATURE=$(grep -nE "^[[:space:]]*- \[ \] " docs/ROADMAP.md 2>/dev/null | { md5 2>/dev/null || md5sum 2>/dev/null; })
 
   echo ""; echo "=== iteration $i / $MAX_ITER ==="
 

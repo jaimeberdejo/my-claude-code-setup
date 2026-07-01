@@ -40,6 +40,15 @@ OPEN='## Phase 1 — Work
 
 - [ ] still open'
 
+# Real-world fixture: the `roadmap` skill's own output format prepends this exact legend line
+# to every roadmap it writes — permanently present for the life of the milestone. A naive
+# substring grep for "- [ ]" (or "- [x]") matches INSIDE this line too, since it isn't anchored
+# to actual list-item lines.
+LEGEND='> `- [ ]` = todo, `- [x]` = done. The /phase command and hooks read these.'
+DONE_WITH_LEGEND="$LEGEND
+
+$DONE"
+
 echo "milestone closure tests"; echo ""
 
 # 1 — open items → refuses, nothing archived.
@@ -65,6 +74,14 @@ grep -q 'Milestone v1 closed' "$REPO/docs/STATE.md" && pass "STATE auto-block re
 rc=$(runclose "$REPO" --name v1)
 { [ "$rc" = 1 ] && grep -q 'nothing to close' "$WORK/out"; } \
   && pass "re-run on empty roadmap → refuses (no duplicate archive)" || fail "re-run not idempotent-safe (rc=$rc)"
+
+# 5 — the `roadmap` skill's own legend line ("`- [ ]` = todo, `- [x]` = done...") must NOT be
+# mistaken for an open item — a fully-done roadmap in the REAL generated format must close
+# cleanly, not be falsely refused as "open items remain."
+mkrepo m5 "$DONE_WITH_LEGEND"; rc=$(runclose "$REPO" --name v2)
+{ [ "$rc" = 0 ] && [ -f "$REPO/docs/archive/ROADMAP-v2.md" ]; } \
+  && pass "roadmap-skill legend line is not mistaken for an open item (closes cleanly)" \
+  || fail "false-positive 'open items remain' from legend line (rc=$rc)"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All milestone closure tests passed."; exit 0
