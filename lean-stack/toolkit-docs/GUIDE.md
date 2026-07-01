@@ -623,11 +623,32 @@ packs slot in. Two ground rules keep them from fighting the stack:
 ### grill-me / grill-with-docs (mattpocock/skills)
 `npx skills@latest add mattpocock/skills`. `/grill-me` interrogates a plan until every branch of the
 decision tree is resolved; `/grill-with-docs` does the same **and** builds a domain model + updates docs.
-- **Where it fits:** *upstream of the `roadmap` skill.* The roadmap skill refuses a spec without a
-  measurable success criterion — grilling is what manufactures that criterion.
-- **New project:** `install → /grill-me → docs/SPEC.md → roadmap skill → phases`. It's the rigorous
-  version of the built-in `"grill me on <idea>"` prompt pattern in [Part 8, case 6](#6-start-a-brand-new-project-from-scratch).
-- **New milestone:** `milestone skill archives the done roadmap → /grill-me the next batch → SPEC → roadmap`.
+
+**Where it fits:** *upstream of the `roadmap` skill.* The roadmap skill refuses a spec without a
+measurable success criterion — grilling is what manufactures that criterion. The full new-project
+pipeline, with grill-me as the thinking stage:
+
+```
+  install                setup-lean-stack skill (or install.sh) → fill CLAUDE.md + HIGH_STAKES_RE
+     ↓
+  GRILL   ── plan mode ──  /grill-me      ← interrogate until the goal + the ONE measurable
+                           (or "grill me on <idea>")   success metric + non-goals are crisp
+     ↓
+  SPEC                     write docs/SPEC.md   (what/why · MEASURABLE criterion · non-goals · constraints)
+     ↓
+  ROADMAP                  roadmap skill  →  docs/ROADMAP.md   (ordered phases: Done when + Mode)
+     ↓
+  BUILD                    /phase → review → teach-back → /wrap → /clear   ×N   →   ship
+```
+
+The `roadmap` step is the gate that makes grilling non-optional: a vague spec yields unverifiable
+phases, and unverifiable phases are exactly what the evaluator and the `tick.sh` gate can't pass. So
+grilling *manufactures the verifiable signal the whole autonomy chain runs on* — garbage-in at GRILL
+means phases your loop can never grade. `/grill-me` is the rigorous, install-once upgrade of the
+built-in `"grill me on <idea>"` prompt pattern ([Part 8, case 6](#6-start-a-brand-new-project-from-scratch)).
+
+- **New milestone (same spine, one level up):** `milestone skill archives the done roadmap → /grill-me
+  the next batch → SPEC → roadmap`. Whether it's project zero or milestone five, it's `think → spec → roadmap`.
 - **Watch for:** aim `/grill-with-docs` at `docs/SPEC.md` / `docs/ARCHITECTURE.md` so it feeds the
   source-of-truth layout instead of a parallel one (it overlaps the stack's own `mapme`).
 
