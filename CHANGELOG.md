@@ -4,9 +4,44 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.1.0] — 2026-07-06
+
+Per-stage model configuration (the `researcher`/`planner`/`executor`/`evaluator` subagents and the
+`/models` command) plus a hardening milestone of five edge fixes surfaced by dogfooding the toolkit
+across real builds.
+
+### Added
+- **Auditable high-stakes path allowlist** (`.claude/high-stakes-path-allowlist`) — a git-tracked,
+  per-line, reason-required escape for exact-path false positives in the high-stakes gate's path
+  matcher (e.g. an ADR file whose name merely contains "money"). Purely subtractive: the enforced
+  `HIGH_STAKES_RE` and the content scanner are unchanged; only an exact path with a non-empty
+  reason is cleared, and a bare/reasonless entry suppresses nothing. `doctor.sh` reports active
+  entries so a suppression is never hidden.
+- **`close-milestone.sh` surfaces open ownership gaps** — a non-fatal notice when `docs/STATE.md`
+  has unresolved `## Ownership gaps` entries, so a skipped `teach-back` is visible at milestone
+  close instead of accumulating silently. It never blocks the close.
+
+### Changed
+- **Closing a milestone (`close-milestone.sh`) + bumping `VERSION`/tagging is now its own explicit
+  checkpoint**, never inferred from an ambiguous "go ahead"/"resume"/"continue" reply to an
+  unrelated question (documented in `CLAUDE.md`, `GUIDE.md`, and the `milestone` skill's Mode B,
+  which now pauses for a clear yes and reads any ownership-gaps notice aloud). Motivated by a real
+  dogfooding incident where an ambiguous "resume" chained a phase-tick into a milestone close.
+- **Documented that headless `scripts/autopilot.sh` currently assumes
+  `--dangerously-skip-permissions`** (sandbox-only), and why a narrower scoped `permissions.allow`
+  profile is not currently possible: `.claude/` is a Claude Code protected path whose writes are
+  denied in every mode except bypass, and `/phase` writes its state files there.
 
 ### Fixed
+- **`resolve_test_cmd()` no longer depends on `.claude/settings.json`'s `env` block reaching the
+  Bash subprocess.** When `$LEAN_TEST_CMD` is empty it reads the (string-typed) value directly from
+  `settings.json` via `jq`, closing a gap where a raw Bash-tool invocation got an empty var and
+  silently fell back to a system `pytest` lacking a `uv`/`poetry` project's deps.
+- **A genuinely-green phase can no longer fail to tick on a flaky one-shot test sample under
+  `--pr`.** `scripts/test-evidence.sh` now retries-with-backoff before recording a red result, and
+  `scripts/autopilot.sh` re-measures test evidence after the evaluator PASS (the measurement
+  closest to the grading decision). `scripts/tick.sh`'s fail-closed contract is unchanged — a
+  genuinely red suite is still refused.
 - **`scripts/models.sh` could silently corrupt an agent's `model:` frontmatter line instead of
   rejecting an unsafe value.** The raw value was spliced directly into a `sed` replacement string
   and into `awk -v` — both treat certain characters specially: `&`/`/`/`\` have meaning inside a

@@ -30,7 +30,7 @@
 _lean_test_cmd_from_settings() {
   [ -f .claude/settings.json ] || return 0
   command -v jq >/dev/null 2>&1 || return 0
-  jq -r '.env.LEAN_TEST_CMD // empty' .claude/settings.json 2>/dev/null
+  jq -r '.env.LEAN_TEST_CMD | select(type=="string") // empty' .claude/settings.json 2>/dev/null
   return 0
 }
 
