@@ -45,6 +45,11 @@
   done on the builder's say-so alone.
 - `touch AGENT_STOP` halts the loop at the next tool call (it can't claw back a call already
   in flight). Write STEER.md to redirect a running loop.
+- **Closing a milestone (`close-milestone.sh`) and bumping `VERSION`/tagging are their own
+  checkpoint, separate from ticking a phase.** Never infer authorization for them from a
+  broader "go ahead" / "resume" / "continue" reply to an unrelated question — even when the
+  phase just ticked was the roadmap's last open item. State plainly that the milestone is
+  about to close, and wait for an explicit answer to that specific question.
 
 ## Ownership (understand what gets built)
 - Before /wrap on a non-trivial phase, run `teach-back` — Claude explains it and

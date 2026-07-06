@@ -58,16 +58,23 @@ exact heading. So this is mechanical and low-risk. Pick the matching mode.
 ## Mode B — Finish a roadmap → start the next batch / new milestone
 Use when every phase is `- [x]` (or the user wants to close the current scope and expand).
 Closure is **gated by a script** — you do NOT archive by hand, and there is no "proceed anyway":
+0. **Confirm this is its own checkpoint.** Before running anything, state plainly that you're
+   about to archive the roadmap and (optionally) bump `VERSION`/tag, and wait for a clear,
+   unambiguous yes. Never infer that authorization from an earlier reply that was really about
+   something else (e.g. a "go ahead"/"resume"/"continue" that only authorized ticking a phase) —
+   even if that phase happened to be the roadmap's last open item.
 1. Run the gate:
    ```bash
    bash scripts/close-milestone.sh        # or: --name <label> to set the archive suffix
    ```
    It REFUSES (exit 1, with the reason) if any `- [ ]` item is still open, if `NEXT_FINDINGS.md`
    exists (an unresolved evaluator finding), or if the roadmap has no phases. If it refuses,
-   resolve the listed items first — do not work around it. On success it `git mv`s
-   `docs/ROADMAP.md` → `docs/archive/ROADMAP-<label>.md` (label = `--name`, else a `VERSION`
-   file, else the latest git tag, else the date), writes a fresh empty `docs/ROADMAP.md`, and
-   resets the `docs/STATE.md` auto-block.
+   resolve the listed items first — do not work around it. It may also print a non-fatal
+   `NOTE — ... Ownership gaps ...` line — that never blocks the close, but read the listed
+   `## Ownership gaps` entries from `docs/STATE.md` aloud to the user before continuing. On
+   success it `git mv`s `docs/ROADMAP.md` → `docs/archive/ROADMAP-<label>.md` (label = `--name`,
+   else a `VERSION` file, else the latest git tag, else the date), writes a fresh empty
+   `docs/ROADMAP.md`, and resets the `docs/STATE.md` auto-block.
 2. Author the next scope into the fresh `docs/ROADMAP.md` — either re-run the **`roadmap`** skill
    on an updated `docs/SPEC.md` (preferred when scope changed), or hand-write phases as in Mode A.
 3. Update the prose "## Now / ## Next action" in `docs/STATE.md` to point at the first new phase.

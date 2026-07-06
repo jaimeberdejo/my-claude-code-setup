@@ -36,6 +36,20 @@ grep -qE '^[[:space:]]*- \[[ xX]\] ' "$ROADMAP" 2>/dev/null || refuse "no phases
 grep -qE '^[[:space:]]*- \[ \] ' "$ROADMAP" 2>/dev/null && refuse "open items remain in $ROADMAP — finish or remove them first."
 [ -f NEXT_FINDINGS.md ] && refuse "NEXT_FINDINGS.md exists (an unresolved evaluator finding) — resolve it first."
 
+# Non-fatal notice: surface open '## Ownership gaps' entries in docs/STATE.md (skipped/incomplete
+# teach-backs are recorded there) so they don't silently accumulate across milestones. This never
+# blocks the close — plain echo to stderr, no exit — and section-absent is treated exactly like
+# section-empty: the scaffold ships with no '## Ownership gaps' heading by default.
+if [ -f "$STATE" ] && grep -q '^## Ownership gaps' "$STATE" 2>/dev/null; then
+  open_gaps=$(awk '
+    /^## Ownership gaps/ { inphase=1; next }
+    /^## / && inphase { inphase=0 }
+    inphase && /^[[:space:]]*-[[:space:]]*[^[:space:]]/ { c++ }
+    END { print c+0 }
+  ' "$STATE")
+  [ "${open_gaps:-0}" -gt 0 ] && echo "close-milestone: NOTE — docs/STATE.md has open '## Ownership gaps' entries; carrying them into the next milestone unresolved." >&2
+fi
+
 # Pick the archive label.
 if [ -z "$NAME" ]; then
   if [ -f VERSION ]; then

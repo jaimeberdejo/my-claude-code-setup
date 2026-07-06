@@ -605,7 +605,13 @@ is," not a stale document phases have quietly outgrown.
 When every phase is `- [x]`, run the `milestone` skill (it calls `scripts/close-milestone.sh` — a
 **gated** archive that refuses while any open item or unresolved `NEXT_FINDINGS.md` remains, then
 archives the roadmap and resets STATE for the next batch). `/wrap` nudges you toward it when it
-notices a fully-ticked roadmap, but never archives on its own.
+notices a fully-ticked roadmap, but never archives on its own. Closing a milestone and bumping
+`VERSION`/tagging is its own explicit checkpoint — never infer it from an ambiguous "go
+ahead"/"resume"/"continue" reply to an unrelated question, even if the phase that reply ticked
+happened to be the roadmap's last one; state plainly what's about to close and wait for a clear
+yes. `close-milestone.sh` also now surfaces (non-fatally) any open `## Ownership gaps` entries
+in `docs/STATE.md` at close time — read them aloud before continuing; the milestone still
+closes either way.
 
 ---
 

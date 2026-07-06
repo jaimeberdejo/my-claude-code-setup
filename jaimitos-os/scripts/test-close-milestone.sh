@@ -2,6 +2,9 @@
 # test-close-milestone.sh — the milestone-closure gate must REFUSE while open items or
 # unresolved findings remain, archive a finished roadmap (preserving history), scaffold a fresh
 # one, reset the STATE auto-block, and be safe to re-run. Runs the REAL script in temp repos.
+# Also covers the non-fatal '## Ownership gaps' notice: it must surface open entries without
+# ever blocking the close, stay silent when the heading is absent, and stay silent when the
+# heading holds only the empty-section '-' placeholder.
 set -uo pipefail
 SCAFFOLD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLOSE="$SCAFFOLD/scripts/close-milestone.sh"
@@ -82,6 +85,31 @@ mkrepo m5 "$DONE_WITH_LEGEND"; rc=$(runclose "$REPO" --name v2)
 { [ "$rc" = 0 ] && [ -f "$REPO/docs/archive/ROADMAP-v2.md" ]; } \
   && pass "roadmap-skill legend line is not mistaken for an open item (closes cleanly)" \
   || fail "false-positive 'open items remain' from legend line (rc=$rc)"
+
+# 6 — non-empty '## Ownership gaps' entries in STATE.md → still closes (rc 0) AND the notice is
+# surfaced in the combined output (teach-back debt must not go silently unmentioned at close).
+mkrepo m6 "$DONE"
+printf '\n## Ownership gaps\n- teach-back skipped for Phase 2 (auth flow)\n' >> "$REPO/docs/STATE.md"
+rc=$(runclose "$REPO" --name v3)
+{ [ "$rc" = 0 ] && grep -q "open '## Ownership gaps' entries" "$WORK/out"; } \
+  && pass "open Ownership-gaps entries → closes AND surfaces non-fatal notice" \
+  || fail "Ownership-gaps notice missing or close wrongly blocked (rc=$rc)"
+
+# 7 — no '## Ownership gaps' heading at all (the scaffold default) → closes, no notice. Section
+# absent must be treated exactly like section empty.
+mkrepo m7 "$DONE"; rc=$(runclose "$REPO" --name v4)
+{ [ "$rc" = 0 ] && ! grep -q "Ownership gaps" "$WORK/out"; } \
+  && pass "no Ownership-gaps heading → closes silently (no notice)" \
+  || fail "missing heading wrongly produced a notice, or close blocked (rc=$rc)"
+
+# 8 — '## Ownership gaps' heading present but only the lone '-' empty-section placeholder (the
+# STATE.md convention also used by '## Open questions') → closes, no notice.
+mkrepo m8 "$DONE"
+printf '\n## Ownership gaps\n-\n' >> "$REPO/docs/STATE.md"
+rc=$(runclose "$REPO" --name v5)
+{ [ "$rc" = 0 ] && ! grep -q "Ownership gaps" "$WORK/out"; } \
+  && pass "Ownership-gaps heading with only '-' placeholder → closes silently (no notice)" \
+  || fail "placeholder-only section wrongly produced a notice, or close blocked (rc=$rc)"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All milestone closure tests passed."; exit 0
