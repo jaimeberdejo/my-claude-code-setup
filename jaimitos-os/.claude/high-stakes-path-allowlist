@@ -1,0 +1,25 @@
+# high-stakes-path-allowlist — narrow, reviewable escapes for the PATH/keyword matcher
+# (high_stakes_match() in .claude/lib/_high-stakes.sh), NOT for the content scanner.
+#
+# This is for a genuine PATH/keyword FALSE POSITIVE only — e.g. a pure-documentation file
+# like ADR-001-decimal-money-as-yaml-strings.md tripping the gate on the substring "money"
+# with zero real safety signal. It is NOT a way to silence a real high-stakes path; that
+# still needs supervised review. The content-level suppression marker (`high-stakes-ok:
+# <reason>`, inline in a diff line — see .claude/rules/high-stakes.md) is a completely
+# separate, content-only mechanism and is unaffected by anything in this file.
+#
+# Format, ONE ENTRY PER LINE:
+#   <exact relative path>: <reason>
+#
+# - The path must be EXACT — as `git diff --name-only` reports it, relative to the repo
+#   root. It is NOT a glob: an entry for one path never suppresses any other path, even
+#   one that matches the same regex category.
+# - A real, non-empty reason is REQUIRED after the colon. A bare path (no colon), or a
+#   path followed by a colon with nothing/only whitespace after it, does NOT suppress
+#   anything — that path still counts as high-stakes.
+# - Blank lines and lines starting with `#` are ignored.
+# - Every entry here is git-tracked and reviewable in its own diff line — that's the
+#   point: an exception can't be slipped in unnoticed alongside a real high-stakes change.
+#
+# No active entries ship by default. Example (uncomment and edit to add a real one):
+# docs/adr/ADR-001-decimal-money-as-yaml-strings.md: doc file, "money" substring only, no code

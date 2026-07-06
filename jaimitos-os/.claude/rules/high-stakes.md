@@ -67,5 +67,15 @@ regex at its shipped default (a sign the enforced gate was never pointed at your
   makes an external call" alone; judge the actual reversibility/consequence.
 - **Money:** never use `float` for currency — use `Decimal` / integer minor units, and
   document the rounding.
+- **Path false-positive? Use the allowlist FILE, not a code comment.** `HIGH_STAKES_RE`'s
+  loose substrings (`money`, `email`, `deploy`, …) match anywhere in a path, so a benign
+  file like `ADR-001-decimal-money-as-yaml-strings.md` can trip the gate on zero real
+  signal. `.claude/high-stakes-path-allowlist` is the sanctioned escape for that: a
+  separate, git-tracked file where each exception is its own reviewable line
+  (`<exact path>: <reason>`, a real reason required) — never an inline suppression, and
+  never a rename-to-dodge-the-regex. It affects ONLY the path/keyword matcher. The
+  content marker (`high-stakes-ok: <reason>`, inline on a diff line) is a completely
+  separate, content-only mechanism and is unaffected by this file, and vice versa.
+  `scripts/doctor.sh` reports active allowlist entries so a suppression is never hidden.
 
 If a task in these paths is ambiguous, STOP and ask rather than guessing.

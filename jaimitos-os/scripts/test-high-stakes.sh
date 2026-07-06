@@ -137,5 +137,74 @@ echo "still be caught even when another line in the same blob is legitimately su
 )
 
 echo ""
+echo "Path allowlist — a separate, git-tracked FILE (.claude/high-stakes-path-allowlist) that"
+echo "narrowly suppresses the PATH/keyword matcher for an EXACT path with a real reason. Uses an"
+echo "isolated tempdir so the repo's real (empty-template) allowlist is never touched by these tests:"
+ALLOW_WORK="$(mktemp -d 2>/dev/null || mktemp -d -t hs-allowlist)"
+mkdir -p "$ALLOW_WORK/.claude"
+trap 'rm -rf "$ALLOW_WORK" 2>/dev/null' EXIT
+
+ALLOW_FILE="$ALLOW_WORK/.claude/high-stakes-path-allowlist"
+set_allowlist()   { printf '%s\n' "$1" > "$ALLOW_FILE"; }
+clear_allowlist() { rm -f "$ALLOW_FILE"; }
+
+allow_should_ignore() { # path expected to be SUPPRESSED (not flagged) given the current allowlist
+  if ( cd "$ALLOW_WORK" && high_stakes_match "$1" >/dev/null ); then
+    printf '  ✗ FALSE HIT (should be suppressed by allowlist): %s\n' "$1"; FAILS=$((FAILS+1))
+  else
+    printf '  ✓ suppressed by allowlist: %s\n' "$1"
+  fi
+}
+allow_should_match() { # path expected to remain FLAGGED despite the current allowlist
+  if ( cd "$ALLOW_WORK" && high_stakes_match "$1" >/dev/null ); then
+    printf '  ✓ still flagged: %s\n' "$1"
+  else
+    printf '  ✗ MISSED (should still be flagged): %s\n' "$1"; FAILS=$((FAILS+1))
+  fi
+}
+
+echo "  a path matching the regex, with a real reason in the allowlist -> suppressed:"
+set_allowlist 'docs/ADR-001-decimal-money-as-yaml-strings.md: doc file, "money" substring only, no code'
+allow_should_ignore "docs/ADR-001-decimal-money-as-yaml-strings.md"
+
+echo "  same path, but the allowlist entry has NO reason (bare colon) -> still flagged:"
+set_allowlist 'docs/ADR-001-decimal-money-as-yaml-strings.md:'
+allow_should_match "docs/ADR-001-decimal-money-as-yaml-strings.md"
+
+echo "  same path, allowlist entry colon followed only by whitespace -> still flagged:"
+set_allowlist 'docs/ADR-001-decimal-money-as-yaml-strings.md:   '
+allow_should_match "docs/ADR-001-decimal-money-as-yaml-strings.md"
+
+echo "  same path, bare entry with no colon at all -> still flagged:"
+set_allowlist 'docs/ADR-001-decimal-money-as-yaml-strings.md'
+allow_should_match "docs/ADR-001-decimal-money-as-yaml-strings.md"
+
+echo "  an allowlist entry for path A must NOT suppress a different path B:"
+set_allowlist 'docs/ADR-001-decimal-money-as-yaml-strings.md: real reason'
+allow_should_match "docs/other-money-file.md"
+
+echo "  adversarial: matching must be EXACT, not prefix/substring — an entry for path A must"
+echo "  still flag any path B for which A is a prefix, a suffix, or a directory-prefix of B"
+echo "  (mutation guard: would fail if _high_stakes_allowlisted() were ever changed from"
+echo "  [ \"\$entry\" = \"\$path\" ] to a prefix/substring test like \`case \"\$path\" in \"\$entry\"*)\`):"
+set_allowlist 'docs/money.md: real reason, adversarial prefix/substring regression guard'
+allow_should_ignore "docs/money.md"          # exact entry -> suppressed, as expected
+allow_should_match "docs/money.md.bak"       # entry is a PREFIX of this path -> must still flag
+allow_should_match "xdocs/money.md"          # entry is a SUFFIX of this path -> must still flag
+allow_should_match "docs/money.md/sub.txt"   # entry is a DIR-PREFIX of this path -> must still flag
+
+echo "  missing allowlist file entirely -> path matching behaves exactly as before:"
+clear_allowlist
+allow_should_match "docs/ADR-001-decimal-money-as-yaml-strings.md"
+
+echo ""
+echo "Content matcher and path matcher remain independent — an active PATH-allowlist entry must"
+echo "not affect content matching (the reverse direction — a content marker not affecting the path"
+echo "matcher — is already asserted above via should_match(\"...high-stakes-ok:...\") and is untouched):"
+set_allowlist 'payments/charge.py: unrelated allowlist entry, irrelevant to content matching'
+content_match 'DELETE FROM sessions WHERE id = 1'
+clear_allowlist
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All high-stakes detection tests passed."; exit 0
 else echo "$FAILS detection test(s) FAILED."; exit 1; fi

@@ -90,6 +90,29 @@ if [ -f "$HS_LIB" ]; then
 fi
 echo ""
 
+echo "High-stakes path allowlist (regex false-positive escapes for high_stakes_match — never hidden):"
+HS_ALLOWLIST=".claude/high-stakes-path-allowlist"
+if [ -f "$HS_ALLOWLIST" ]; then
+  HS_ACTIVE=0
+  while IFS= read -r hsline || [ -n "$hsline" ]; do
+    case "$hsline" in ''|'#'*) continue ;; esac
+    hs_reason="${hsline#*:}"
+    case "$hsline" in
+      *:*)
+        case "$hs_reason" in
+          *[![:space:]]*) HS_ACTIVE=$((HS_ACTIVE+1)); warn "suppressed: $hsline" ;;
+          *) warn "listed but INACTIVE (no reason after colon — still flagged): $hsline" ;;
+        esac
+        ;;
+      *) warn "listed but INACTIVE (no colon/reason — still flagged): $hsline" ;;
+    esac
+  done < "$HS_ALLOWLIST"
+  [ "$HS_ACTIVE" -eq 0 ] && ok "allowlist file present, no active (reasoned) entries"
+else
+  ok "no high-stakes path allowlist file — no path-gate suppressions active"
+fi
+echo ""
+
 echo "Hook files present:"
 for h in session-start steer kill-switch format-on-edit test-gate commit-on-stop ownership-nudge; do
   [ -f ".claude/hooks/$h.sh" ] && ok ".claude/hooks/$h.sh" || bad "missing .claude/hooks/$h.sh"

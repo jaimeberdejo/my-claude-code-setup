@@ -18,6 +18,49 @@
 # on a benign `discharge.py` than to miss a real `refund` path. Edit it for YOUR repo.
 HIGH_STAKES_RE='(^|/)(oauth[0-9]*|auth[a-z0-9_-]*|login|sessions?|accounts?|payments?|billing|transactions?|compliance|suitability|secrets?|kyc|wallet|ledger)([/._-]|$)|migrat|money|payment|credential|delete|deletion|destroy|email|deploy|refund|withdraw|charge|webhook'
 
+# --- path-allowlist escape for high_stakes_match() -----------------------------
+# A separate, git-tracked FILE (NOT an inline comment) that narrowly suppresses a
+# PATH/keyword FALSE POSITIVE — e.g. a pure-doc file like
+# ADR-001-decimal-money-as-yaml-strings.md tripping the gate on the substring "money"
+# with zero real safety signal. Unlike HIGH_STAKES_OK_RE above (content-only, inline,
+# one line at a time), this is a reviewable list: each exception is its own diffable
+# line in .claude/high-stakes-path-allowlist, so it can't ride along inside the SAME
+# commit as a real high-stakes change without showing up as its own line in that diff.
+# Purely subtractive: it only removes an already-matched path from the result of the
+# unmodified HIGH_STAKES_RE match below — it can never widen what the regex catches.
+#
+# Format, one entry per line: "<exact relative path>: <reason>". Blank lines and lines
+# starting with # are ignored. A bare path (no colon), or a path whose colon is followed
+# by nothing/only whitespace, does NOT suppress — mirrors HIGH_STAKES_OK_RE's own
+# non-empty-after-colon rule; the path still counts as high-stakes. Exact-path match
+# ONLY (not a glob): an entry for path A must never suppress a different path B, even
+# if B also matches HIGH_STAKES_RE.
+HIGH_STAKES_PATH_ALLOWLIST=".claude/high-stakes-path-allowlist"
+
+# _high_stakes_allowlisted <path>: returns 0 if <path> has a valid (non-empty-reason)
+# EXACT entry in HIGH_STAKES_PATH_ALLOWLIST, 1 otherwise — including when the file is
+# missing (no suppression, no error: behaves exactly like today with no allowlist).
+_high_stakes_allowlisted() {
+  local path="$1" file="$HIGH_STAKES_PATH_ALLOWLIST" line entry reason
+  [ -f "$file" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;   # blank or comment — ignored
+      *:*) : ;;
+      *) continue ;;         # bare path, no colon at all — no reason, never suppresses
+    esac
+    entry="${line%%:*}"
+    reason="${line#*:}"
+    entry="$(printf '%s' "$entry" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    case "$reason" in
+      *[![:space:]]*) : ;;
+      *) continue ;;         # colon present but nothing/only whitespace after it — no reason
+    esac
+    [ "$entry" = "$path" ] && return 0
+  done < "$file"
+  return 1
+}
+
 # high_stakes_match <newline-separated-paths>
 #   Echoes the matching paths; returns 0 if any matched, 1 if none.
 #   FAILS SAFE: if HIGH_STAKES_RE is empty or unset (a customization slip), treat EVERY
@@ -27,8 +70,13 @@ high_stakes_match() {
     echo "high-stakes: HIGH_STAKES_RE is empty/unset — failing SAFE (treating all paths as high-stakes)." >&2
     printf '%s\n' "$1"; return 0
   fi
-  local matched
+  local matched line
   matched=$(printf '%s\n' "$1" | grep -Ei "$HIGH_STAKES_RE" 2>/dev/null)
+  if [ -n "$matched" ]; then
+    matched=$(while IFS= read -r line; do
+      _high_stakes_allowlisted "$line" || printf '%s\n' "$line"
+    done <<< "$matched")
+  fi
   if [ -n "$matched" ]; then printf '%s\n' "$matched"; return 0; fi
   return 1
 }
