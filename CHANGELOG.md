@@ -6,9 +6,27 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Next milestone: **v2.2.0 — toolkit→project sync mechanism** (let an already-scaffolded project
-pull in later toolkit fixes without clobbering customizations). Scope + open design decisions in
-`PLAN-v2.2-toolkit-sync.md`._
+### Added
+- **`scripts/sync.sh`** — lets an already-scaffolded project pull in later `jaimitos-os` toolkit
+  fixes from a local checkout without clobbering its own customizations. `install.sh` only handles
+  brand-new projects (skip-if-exists); sync is the update path for one that's already scaffolded.
+  It enumerates every toolkit-shipped file and classifies each into one of four tiers: **overwrite**
+  (toolkit-owned logic, no project values inside — diffed, confirmed, copied over), **never**
+  (project-owned — `docs/`, `CLAUDE.md`, `SCAFFOLD.md`, `.gitignore` — always skipped), **mixed**
+  (a toolkit-owned file with exactly one project-customized value inside: `_high-stakes.sh`'s
+  `HIGH_STAKES_RE=` line, an agent's `model:` frontmatter line, or `rules/high-stakes.md`'s
+  `paths:` block — a narrow, value-preserving merge keeps the toolkit's updated body with the
+  project's value substituted back in verbatim, byte-for-byte even when it contains regex
+  metacharacters; always prompts, never bypassed by `--yes`), and **unknown/malformed**
+  (unclassified, e.g. `.claude/settings.json`, or a known-mixed file whose shape doesn't match what
+  sync expects — always left for manual review, never guessed at or clobbered). Fails safe: nothing
+  is written without an explicit confirmation and a shown diff (or, for a mixed merge, a diff of
+  the proposed merge result); `--dry-run` previews the whole plan; a `cp` failure is tallied as
+  FAILED rather than silently reported as updated. Drift is detected by diffing against a LOCAL
+  toolkit checkout passed via `--toolkit <path>` (no shipped manifest yet); `.github/*` files are
+  only synced into a project that already opted into CI. Wired into `doctor.sh` (a small advisory
+  pointing at `sync.sh --dry-run` when `.claude/.jaimitos-os-version` is present) and
+  `.github/scripts/install-smoke.sh`.
 
 ## [2.1.0] — 2026-07-06
 

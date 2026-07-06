@@ -45,7 +45,7 @@ grep -q "Jaimitos OS — the scaffold" README.md && bad "scaffold README content
 # CI absent by default.
 [ -e .github/workflows/jaimitos-os-ci.yml ] && bad "CI copied without --with-ci" || ok "CI absent by default"
 # Core scaffold + shared libs present.
-for f in CLAUDE.md .claude/settings.json scripts/autopilot.sh \
+for f in CLAUDE.md .claude/settings.json scripts/autopilot.sh scripts/sync.sh \
          .claude/lib/_secret-scan.sh .claude/lib/_high-stakes.sh \
          .claude/commands/autopilot-parallel.md \
          .claude/commands/models.md scripts/models.sh scripts/test-models.sh \
