@@ -56,12 +56,12 @@ jaimitos-claude-setup/
 │   ├── CLAUDE.md                    # lean constitution (edit placeholders per project)   [installed]
 │   ├── SCAFFOLD.md                  # scaffold quick-start (ships as SCAFFOLD.md, never clobbers README) [installed]
 │   ├── docs/                        # SPEC · ROADMAP · STATE · ARCHITECTURE · decisions/ · plans/
-│   ├── scripts/                     # autopilot.sh · tick.sh (the completion gate) · doctor.sh · test-hooks.sh
+│   ├── scripts/                     # autopilot.sh · tick.sh (the completion gate) · doctor.sh · test-hooks.sh · models.sh
 │   ├── .github/workflows/jaimitos-os-ci.yml   # OPT-IN CI (install.sh --with-ci)
 │   └── .claude/
 │       ├── settings.json            # hooks → events + permissions.deny
-│       ├── commands/                # /resume /wrap /phase /autopilot /autopilot-parallel
-│       ├── agents/evaluator.md      # independent grader
+│       ├── commands/                # /resume /wrap /phase /autopilot /autopilot-parallel /models
+│       ├── agents/                  # researcher, planner, executor, evaluator — one per /phase stage
 │       ├── rules/high-stakes.md     # path-scoped extra care
 │       └── hooks/                   # 7 deterministic shell hooks + 3 shared libs (_secret-scan, _high-stakes, _test-cmd)
 └── skills/                ← 11 skills (10 portable + setup-jaimitos-os installer)
@@ -136,9 +136,10 @@ Then loop.
 > the exact bug this setup avoids elsewhere. So `install.sh` owns the copy; the skill only
 > owns the judgment (filling placeholders). Deterministic work stays deterministic.
 
-> **Model note:** don't blanket-set `CLAUDE_CODE_SUBAGENT_MODEL=haiku` — it *overrides*
-> the evaluator's `model: sonnet` and would downgrade your grader (the one place you want
-> the strong model).
+> **Model note:** each `/phase` stage can be pinned to its own model via `scripts/models.sh` /
+> `/models` (persisted in that role's agent frontmatter). Don't blanket-set
+> `CLAUDE_CODE_SUBAGENT_MODEL=haiku` — it *overrides* every subagent's frontmatter `model:`
+> uniformly, including the evaluator's, silently downgrading whatever you configured.
 
 ---
 
@@ -168,12 +169,16 @@ You drive each arrow manually for stakes that warrant it, or hand the bracket to
 | `/autopilot N` | **Watchable** in-session loop: runs N phases in your terminal, grading each via the evaluator subagent. Accepts `N`, `3-5`, or `all`. |
 | `/autopilot-parallel "<heading>" ...` | Builds **named, user-asserted-independent** phases concurrently in isolated worktrees, then integrates and grades them one at a time through the same `tick.sh` gate. Never auto-detects independence — you name the phases. |
 | `/wrap` | Session close-out: update STATE, tick ROADMAP through the shared `scripts/tick.sh` gate (evaluator PASS + fresh green tests + clean secret scan + no high-stakes), append an ADR. Never flips checkboxes by hand. |
+| `/models` | Thin wrapper around `scripts/models.sh` — shows or sets which model each `/phase` stage (research/plan/execute/verify) uses, persisted per-project in that stage's agent frontmatter. `all=X` sets all four; `reset` restores shipped defaults. |
 
 ## Agent & rules
 
 | File | Role |
 |---|---|
-| `agents/evaluator.md` | Independent grader — fresh context, **no edit tools**, default-FAIL contract. Grades only; never ticks. The sole *programmatic* gate on "done" in the headless loop. |
+| `agents/researcher.md` | Read-only investigator for `/phase` step 3 (research) — no Write/Edit, findings-only. |
+| `agents/planner.md` | Writes `docs/plans/<phase>.md` for `/phase` step 4 (plan) — Write scoped by convention to that one file. |
+| `agents/executor.md` | Full build permissions for `/phase` step 5 (execute) — the TDD loop. |
+| `agents/evaluator.md` | Independent grader for `/phase` step 6 (verify) — fresh context, **no edit tools**, default-FAIL contract. Grades only; never ticks. The sole *programmatic* gate on "done" in the headless loop. |
 | `rules/high-stakes.md` | Native `.claude/rules/` file scoped to auth/migrations/money/etc. paths. Path-scoped loading is currently unreliable in Claude Code, so the **same constraints are also kept in `CLAUDE.md`** (which loads every turn) — don't rely on the rule auto-loading. Point its `paths:` at *your* sensitive dirs. |
 
 ## Hooks (deterministic shell — not all enforce; see Enforcement reality)

@@ -6,6 +6,17 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`/phase`'s four stages (research/plan/execute/verify) now delegate to their own subagents**
+  (`.claude/agents/researcher.md`, `planner.md`, `executor.md`, joining the existing
+  `evaluator.md`), each independently pinnable to a specific model. `scripts/models.sh` is the
+  new deterministic script that owns all mutation of each role's `model:` frontmatter field
+  (the same mechanism `evaluator.md`'s `model: sonnet` already used) — `/models` is a thin
+  command wrapper around it, and `setup-jaimitos-os` calls it once at project setup.
+  `scripts/doctor.sh` reports current model configuration by delegating to `scripts/models.sh`.
+  New tests: `scripts/test-models.sh` (mutation contract), `scripts/test-doctor.sh` additions,
+  `.github/scripts/install-smoke.sh` additions.
+
 ### Fixed
 - **`scripts/autopilot.sh` can now actually complete a phase headless against a real
   (non-stubbed) `claude` binary.** Found via dogfooding a full project through the whole

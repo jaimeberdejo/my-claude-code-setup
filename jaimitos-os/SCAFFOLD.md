@@ -12,8 +12,9 @@ project (so it doesn't pollute it); read it on GitHub:
 
 ## What got installed here
 - **CLAUDE.md** — lean constitution (edit the `<...>` placeholders). Includes the Ownership section.
-- **.claude/** — hooks, commands (`/phase` `/autopilot` `/wrap` `/resume`), the `evaluator` subagent,
-  and the shared guard libs (`_secret-scan.sh`, `_high-stakes.sh`).
+- **.claude/** — hooks, commands (`/phase` `/autopilot` `/wrap` `/resume` `/models`), the four
+  `/phase`-stage subagents (`researcher`, `planner`, `executor`, `evaluator`), and the shared
+  guard libs (`_secret-scan.sh`, `_high-stakes.sh`).
 - **.claude/skills/** — the workflow + ownership skills (roadmap, adr, ship-check, scope-guard,
   explain-diff, unstick, teach-back, mapme, quizme).
 - **docs/** — SPEC/ROADMAP/STATE/ARCHITECTURE templates + `decisions/` for ADRs.
@@ -26,8 +27,9 @@ CI is **opt-in**: re-run the installer with `--with-ci` to also drop a
 The two required steps are `chmod` then `doctor.sh`:
 
     chmod +x .claude/hooks/*.sh scripts/*.sh
-    # NOTE: don't blanket-set CLAUDE_CODE_SUBAGENT_MODEL=haiku — it OVERRIDES the
-    # evaluator's sonnet frontmatter and downgrades your grader. See the README setup notes.
+    # NOTE: don't blanket-set CLAUDE_CODE_SUBAGENT_MODEL=haiku — it OVERRIDES every /phase
+    # stage's frontmatter model: (set via scripts/models.sh / /models), including the
+    # evaluator's, and downgrades your grader. See the README setup notes.
     # ENABLE_TOOL_SEARCH is unverified against current docs — confirm before relying on it.
     bash scripts/doctor.sh        # verify tooling, scaffold, settings, hooks
     bash scripts/test-hooks.sh    # smoke-test the hooks

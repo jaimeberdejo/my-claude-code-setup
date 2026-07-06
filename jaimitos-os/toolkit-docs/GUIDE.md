@@ -58,10 +58,14 @@ your-repo/
     │   ├── phase.md               # /phase     — build one phase (research→plan→TDD→grade; no self-tick;
     │   │                          #   optional heading argument to target a specific phase)
     │   ├── autopilot.md           # /autopilot — WATCHABLE in-session loop of N phases
-    │   └── autopilot-parallel.md  # /autopilot-parallel — user-named independent phases built
-    │                              #   concurrently (isolated worktrees), integrated/ticked one at a time
-    ├── agents/
-    │   └── evaluator.md           # independent grader (default-FAIL, no edit tools)
+    │   ├── autopilot-parallel.md  # /autopilot-parallel — user-named independent phases built
+    │   │                          #   concurrently (isolated worktrees), integrated/ticked one at a time
+    │   └── models.md              # /models    — thin wrapper around scripts/models.sh
+    ├── agents/                    # one file per /phase stage, each independently model-configurable
+    │   ├── researcher.md          # step 3 (research) — read-only, no Write/Edit
+    │   ├── planner.md             # step 4 (plan) — writes docs/plans/<phase>.md only
+    │   ├── executor.md            # step 5 (execute) — full build permissions, TDD loop
+    │   └── evaluator.md           # step 6 (verify) — independent grader (default-FAIL, no edit tools)
     ├── rules/
     │   └── high-stakes.md         # path-scoped: extra care for auth/migrations/money/etc.
     ├── hooks/                     # 7 deterministic shell hooks (see Part 4)
@@ -131,9 +135,14 @@ a customized `CLAUDE.md`. Use `--force` to overwrite, `--with-ci` to also drop t
   a container with no prod credentials, plus `permission_mode: default` for sensitive work.
 
 ### Model & budget
-- **Don't blanket-set `CLAUDE_CODE_SUBAGENT_MODEL=haiku`** — that env var *overrides* the
-  evaluator's `model: sonnet` (precedence: env > per-invocation > frontmatter), silently
-  downgrading your grader. Leave it unset, or set it to `sonnet`.
+- **Each `/phase` stage (research/plan/execute/verify) can be pinned to its own model**, set once
+  per project via `scripts/models.sh` / `/models` (persisted in `.claude/agents/<role>.md`'s
+  `model:` frontmatter — see Part 4's "Per-stage models"). An unset stage inherits whatever
+  model is running the session.
+- **Don't blanket-set `CLAUDE_CODE_SUBAGENT_MODEL=haiku`** — that env var *overrides* every
+  subagent's frontmatter `model:` uniformly (precedence: env > per-invocation > frontmatter),
+  silently downgrading whatever you configured, including the evaluator's grade. Leave it
+  unset, or set it to a model you're comfortable grading with.
 - **Set a hard daily budget cap** in your Claude Code / gateway config. The loop guardrails are
   your first line; the budget cap is the authoritative backstop against a runaway overnight run.
 
@@ -238,16 +247,36 @@ gate, same guardrails.
 ## Part 4 — The per-phase cycle, hooks & the completion gate
 
 `/phase` (and both autopilots, which run it) executes the full **research → plan → execute →
-verify** cycle for one roadmap phase:
+verify** cycle for one roadmap phase, delegating each of the four stages below to its own
+subagent (Task tool) — each stage gets a fresh context and, independently, its own configurable
+model (see "Per-stage models" below):
 
 1. **Carry findings forward.** If `NEXT_FINDINGS.md` exists (a prior grade's gripes), address it first.
 2. **Pick the phase & record the base.** First phase with unchecked items; saves `.claude/.phase-base`
    (the ref the grader diffs against) and `.claude/.phase-ready` (the exact heading to tick).
-3. **Research — only if needed.** Unfamiliar API/library/unread code → a brief pass (read the code;
-   consult context7/docs if available), captured as 3–6 bullets atop the plan. Obvious path → skipped.
-4. **Plan.** Writes `docs/plans/<phase>.md` (research notes + tasks + "Done when").
-5. **Execute, TDD.** Per task: failing test first → minimal code → green; commit each. Stop after 3 red attempts.
+3. **Research — only if needed, delegated to `researcher`.** Unfamiliar API/library/unread code
+   → the `researcher` subagent reads the code and consults docs (context7/web if available),
+   returning 3–6 bullets. Obvious path → skipped entirely, no subagent call.
+4. **Plan, delegated to `planner`.** Given the phase's criteria and (if step 3 ran) the
+   researcher's findings verbatim, the `planner` subagent writes `docs/plans/<phase>.md`
+   (research notes + tasks + "Done when") and nothing else.
+5. **Execute, delegated to `executor`, TDD.** Given the plan file, the `executor` subagent runs
+   the TDD loop per task: failing test first → minimal code → green; commit each. Stops after
+   3 red attempts and reports the blocker back to the orchestrating session.
 6. **Verify.** The `evaluator` subagent self-checks (fresh context, no edit tools, default-FAIL).
+
+### Per-stage models
+Each of the four subagents above carries its own optional `model:` frontmatter field — the
+SAME mechanism `evaluator.md` has always used. By default `researcher`/`planner`/`executor`
+have no `model:` line (inherit the orchestrating session's model); `evaluator.md` ships pinned
+to `sonnet`. All mutation of these lines is owned by `scripts/models.sh` — run `bash
+scripts/models.sh` (or `/models`) with no argument to see the current setting for all four, or
+`/models exec=opus` (etc.) to change one or more; see `.claude/commands/models.md` and
+`scripts/models.sh`'s own header comment for the full syntax, including `all=` and `reset`.
+This is a per-project, committed setting (it lives in the agent files themselves), so once set
+it applies to every future `/phase` run, interactive or headless, until changed.
+**`CLAUDE_CODE_SUBAGENT_MODEL` still overrides all four uniformly if set** — see "Model &
+budget" in Part 2.
 
 ### The completion gate — `scripts/tick.sh` (read this twice)
 
@@ -875,7 +904,8 @@ second plan/execute/tick loop — a spine — run only one, and let it be jaimit
 INSTALL      git clone …/jaimitos-claude-setup ~/jaimitos-claude-setup
              bash ~/jaimitos-claude-setup/install.sh /path/to/repo   (--force, --global-skills, --with-ci)
              git init && bash scripts/doctor.sh
-             (don't set CLAUDE_CODE_SUBAGENT_MODEL=haiku — it downgrades the evaluator)
+             (don't set CLAUDE_CODE_SUBAGENT_MODEL=haiku — it overrides every /phase stage's
+              model:, downgrading the evaluator too; see "Model & budget" in Part 2)
 
 DAILY LOOP   /resume → /phase → review → teach-back → /wrap → /clear
 
@@ -885,6 +915,7 @@ COMMANDS     /resume       orient at session start
              /autopilot-parallel "<heading>" ...   build named, user-asserted-independent
                             phases concurrently (per-phase worktree), integrate + grade serially
              /wrap         update STATE, tick ROADMAP via the tick.sh gate, append ADRs
+             /models       show/set which model each /phase stage uses (thin wrapper around scripts/models.sh)
              @evaluator     grade a phase independently
 
 SKILLS       workflow:   roadmap · milestone · adr · ship-check · scope-guard · explain-diff · unstick
