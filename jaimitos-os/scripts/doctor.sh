@@ -42,7 +42,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ok "inside a git repo" ||
 echo ""
 
 echo "Scaffold files:"
-for f in .claude/settings.json docs/SPEC.md docs/ROADMAP.md docs/STATE.md CLAUDE.md scripts/autopilot.sh; do
+for f in .claude/settings.json docs/SPEC.md docs/ROADMAP.md docs/STATE.md CLAUDE.md scripts/autopilot.sh scripts/models.sh; do
   [ -f "$f" ] && ok "$f" || bad "missing $f"
 done
 if [ -d docs/plans ]; then ok "docs/plans/ exists"
@@ -56,11 +56,21 @@ else warn "docs/FAILURES.md missing (created on the first resolved finding, or r
 echo ""
 
 echo "Agents, commands, rules:"
-[ -f .claude/agents/evaluator.md ] && ok ".claude/agents/evaluator.md" || bad "missing .claude/agents/evaluator.md (independent grader)"
-for c in resume wrap phase autopilot autopilot-parallel; do
+for a in researcher planner executor evaluator; do
+  [ -f ".claude/agents/$a.md" ] && ok ".claude/agents/$a.md" || bad "missing .claude/agents/$a.md"
+done
+for c in resume wrap phase autopilot autopilot-parallel models; do
   [ -f ".claude/commands/$c.md" ] && ok ".claude/commands/$c.md" || bad "missing .claude/commands/$c.md"
 done
 [ -f .claude/rules/high-stakes.md ] && ok ".claude/rules/high-stakes.md" || bad "missing .claude/rules/high-stakes.md"
+echo ""
+
+echo "Model configuration (which model each /phase stage uses; set via /models):"
+if [ -f scripts/models.sh ]; then
+  bash scripts/models.sh 2>/dev/null | sed 's/^/  /'
+else
+  bad "scripts/models.sh missing — /models cannot function"
+fi
 echo ""
 
 echo "High-stakes gate customization:"

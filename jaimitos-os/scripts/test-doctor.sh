@@ -2,6 +2,7 @@
 # test-doctor.sh — doctor.sh --fix must apply only SAFE, LOCAL, IDEMPOTENT repairs (chmod +x,
 # docs/plans, docs/FAILURES.md), never touch the high-stakes fingerprint, and be a no-op on a
 # second run. Installs the scaffold into a throwaway repo and breaks the fixable things.
+# Also covers the informational "Model configuration:" report section, delegated to scripts/models.sh.
 set -uo pipefail
 SC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 command -v git >/dev/null 2>&1 || { echo "test: git required"; exit 1; }
@@ -43,6 +44,25 @@ grep -q "fixed:" "$WORK/out2" && fail "second --fix still repairs (not idempoten
 rm -rf docs/plans
 bash scripts/doctor.sh > /dev/null 2>&1 || true
 [ ! -d docs/plans ] && pass "plain doctor.sh stays report-only (no repairs)" || fail "plain doctor.sh mutated the tree"
+
+echo ""
+echo "Model configuration reporting"
+echo ""
+
+bash scripts/doctor.sh > "$WORK/out3" 2>&1 || true
+grep -q "research: *(inherits session model)" "$WORK/out3" \
+  && pass "doctor reports researcher inherits session model by default" \
+  || fail "doctor did not report researcher's default (inherit) state"
+grep -q "eval: *sonnet" "$WORK/out3" \
+  && pass "doctor reports evaluator's shipped model: sonnet" \
+  || fail "doctor did not report evaluator's configured model"
+
+bash scripts/models.sh exec=opus > /dev/null 2>&1
+bash scripts/doctor.sh > "$WORK/out4" 2>&1 || true
+grep -q "exec: *opus" "$WORK/out4" \
+  && pass "doctor reflects a hand-set model on executor via models.sh" \
+  || fail "doctor did not pick up executor's hand-set model"
+bash scripts/models.sh reset > /dev/null 2>&1
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All doctor --fix tests passed."; exit 0
