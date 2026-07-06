@@ -450,6 +450,68 @@ printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
   && pass "malformed agent file (2 model: lines) → manual review, byte-identical even with 'y' piped" \
   || fail "malformed agent file (dup model:) mishandled (rc=$rc)"
 
+# 17a — agent C3: project has VALID frontmatter with NO model: inside it, but a stray `model: haiku`
+# line in the markdown BODY. That body line must NOT be mistaken for config (the pre-C3 bug counted
+# it and substituted it into the toolkit's frontmatter). Correct behavior: frontmatter says inherit
+# (pn=0), so the toolkit's model: sonnet is stripped → merge SUCCEEDS, merged frontmatter has no
+# model: line, the body `haiku` never leaks into config, toolkit body update lands.
+mktoolkit
+mkproject t17a
+mkdir -p .claude/agents
+cat > .claude/agents/evaluator.md <<'EOF'
+---
+name: evaluator
+description: PROJECT_BODY_V1 evaluator
+tools: Read, Glob, Grep, Bash
+---
+
+Project evaluator body v1.
+model: haiku
+EOF
+printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
+{ [ "$rc" -eq 0 ] \
+  && ! grep -q '^model:' .claude/agents/evaluator.md \
+  && ! grep -q 'haiku' .claude/agents/evaluator.md \
+  && grep -q "TOOLKIT_BODY_V2" .claude/agents/evaluator.md \
+  && grep -qi "merged" "$WORK/out"; } \
+  && pass "agent C3: a stray body model: line is NOT config — frontmatter has no model: so merge inherits (toolkit model: stripped), body 'haiku' never leaks" \
+  || fail "agent C3: stray body model: line was mistaken for config (rc=$rc)"
+
+# 17b — agent C3: project file has NO frontmatter at all (no --- delimiters) but a model: line.
+# A frontmatter-less file must never be treated as config → manual review, byte-identical.
+mktoolkit
+mkproject t17b
+mkdir -p .claude/agents
+cat > .claude/agents/evaluator.md <<'EOF'
+name: evaluator
+model: opus
+
+Body-only file with no frontmatter delimiters at all.
+EOF
+cp .claude/agents/evaluator.md "$WORK/t17b-before"
+printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
+{ [ "$rc" -eq 0 ] && cmp -s .claude/agents/evaluator.md "$WORK/t17b-before" && grep -qi "manual review" "$WORK/out"; } \
+  && pass "agent C3: project file with NO frontmatter (but a model: line) → manual review, byte-identical" \
+  || fail "agent C3: frontmatter-less file was merged/altered or not reported (rc=$rc)"
+
+# 17c — agent C3: project file has an OPENING --- but no closing --- (unclosed frontmatter) with a
+# real model: opus inside it. Unclosed frontmatter is not well-formed → manual review, byte-identical.
+mktoolkit
+mkproject t17c
+mkdir -p .claude/agents
+cat > .claude/agents/evaluator.md <<'EOF'
+---
+name: evaluator
+model: opus
+
+Unclosed frontmatter (no second --- delimiter).
+EOF
+cp .claude/agents/evaluator.md "$WORK/t17c-before"
+printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
+{ [ "$rc" -eq 0 ] && cmp -s .claude/agents/evaluator.md "$WORK/t17c-before" && grep -qi "manual review" "$WORK/out"; } \
+  && pass "agent C3: project file with unclosed frontmatter (opening --- only, real model: opus inside) → manual review, byte-identical" \
+  || fail "agent C3: unclosed-frontmatter file was merged/altered or not reported (rc=$rc)"
+
 # 18 — rules_hs normal merge: project's paths: block (including its own comment line) survives
 # verbatim, and the toolkit's body update (description + heading + prose) lands.
 mktoolkit

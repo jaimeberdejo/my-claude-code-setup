@@ -234,17 +234,19 @@ merge_hs_lib() {
 }
 
 # --- shape 2: .claude/agents/*.md — the ^model: frontmatter line (0 or 1; MAY be absent) -------
-model_line_count() {
-  local n
-  n=$(grep -cE '^model:' "$1" 2>/dev/null)
-  printf '%s' "${n:-0}"
-}
-
 # has_wellformed_frontmatter <file>: true if line 1 is exactly "---" and a closing "---" exists.
 has_wellformed_frontmatter() {
   [ "$(sed -n '1p' "$1")" = "---" ] || return 1
   [ "$(grep -c '^---$' "$1" 2>/dev/null)" -ge 2 ] || return 1
 }
+
+# fm_model_lines <file>: print ^model: lines that live INSIDE the frontmatter (between line 1's ---
+# and the next ---). Scoping model: detection here stops a stray body `model:` line being mistaken
+# for config (C3). Assumes has_wellformed_frontmatter already passed.
+fm_model_lines() {
+  awk 'NR==1 && $0=="---"{infm=1; next} infm && $0=="---"{exit} infm && /^model:/{print}' "$1"
+}
+fm_model_line_count() { fm_model_lines "$1" | grep -c . ; }
 
 # merge_agent_model <projfile> <toolkitfile> <outfile>: preserves the PROJECT's model: state
 # (its value, or its absence) onto the toolkit's body. Returns 1 (outfile untouched/empty,
@@ -252,33 +254,42 @@ has_wellformed_frontmatter() {
 # the toolkit lacks would require a frontmatter shape it doesn't have.
 merge_agent_model() {
   local projfile="$1" toolkitfile="$2" outfile="$3" pn tn proj_line
-  pn=$(model_line_count "$projfile")
+  # C3: a model: line is only trustworthy INSIDE a well-formed --- frontmatter block. A stray model:
+  # line in the markdown body, a frontmatter-less file, or unclosed frontmatter must never be treated
+  # as config (that path replaced whole project files while reporting success). Require well-formed
+  # frontmatter in BOTH copies and scope all model: detection to the frontmatter region.
+  has_wellformed_frontmatter "$projfile"    || { MIXED_REASON="project agent file has no well-formed --- frontmatter block"; return 1; }
+  has_wellformed_frontmatter "$toolkitfile" || { MIXED_REASON="toolkit agent file has no well-formed --- frontmatter block"; return 1; }
+  pn=$(fm_model_line_count "$projfile")
   if [ "$pn" -gt 1 ]; then
-    MIXED_REASON="project copy has $pn model: line(s) (expected 0 or 1)"; return 1
+    MIXED_REASON="project copy has $pn model: line(s) in frontmatter (expected 0 or 1)"; return 1
   fi
-  tn=$(model_line_count "$toolkitfile")
+  tn=$(fm_model_line_count "$toolkitfile")
   if [ "$tn" -gt 1 ]; then
-    MIXED_REASON="toolkit copy has $tn model: line(s) (expected 0 or 1)"; return 1
+    MIXED_REASON="toolkit copy has $tn model: line(s) in frontmatter (expected 0 or 1)"; return 1
   fi
-
   if [ "$pn" -eq 1 ] && [ "$tn" -eq 1 ]; then
-    proj_line=$(grep -E '^model:' "$projfile" | head -1)
+    proj_line=$(fm_model_lines "$projfile" | head -1)
     MODEL_LINE="$proj_line" awk '
-      /^model:/ && !done { print ENVIRON["MODEL_LINE"]; done=1; next }
+      NR==1 && $0=="---"{infm=1; print; next}
+      infm && $0=="---"{infm=0; print; next}
+      infm && /^model:/ && !done { print ENVIRON["MODEL_LINE"]; done=1; next }
       { print }
     ' "$toolkitfile" > "$outfile"
   elif [ "$pn" -eq 1 ] && [ "$tn" -eq 0 ]; then
-    if ! has_wellformed_frontmatter "$toolkitfile"; then
-      MIXED_REASON="toolkit copy has no well-formed --- frontmatter block to insert model: into"; return 1
-    fi
-    proj_line=$(grep -E '^model:' "$projfile" | head -1)
+    proj_line=$(fm_model_lines "$projfile" | head -1)
     MODEL_LINE="$proj_line" awk '
       NR==1 { print; next }
       !done && /^---$/ { print ENVIRON["MODEL_LINE"]; print; done=1; next }
       { print }
     ' "$toolkitfile" > "$outfile"
   elif [ "$pn" -eq 0 ] && [ "$tn" -eq 1 ]; then
-    grep -vE '^model:' "$toolkitfile" > "$outfile"
+    awk '
+      NR==1 && $0=="---"{infm=1; print; next}
+      infm && $0=="---"{infm=0; print; next}
+      infm && /^model:/ { next }
+      { print }
+    ' "$toolkitfile" > "$outfile"
   else
     cp "$toolkitfile" "$outfile"
   fi
