@@ -108,5 +108,34 @@ content_ignore 'registry.delete(fixture_id)'       # .delete(VAR) — a plain me
 content_ignore 'user.delete_notes()'               # different method name entirely ("delete_notes")
 
 echo ""
+echo "Reviewer suppression marker — CONTENT scanner only (must exempt ONLY the marked line,"
+echo "and only when a real reason follows the colon):"
+content_match 'rm -f known_file.env  # cleanup, no marker present — must still match'
+content_ignore 'rm -f known_file.env  # high-stakes-ok: regenerable local file, not user data'
+content_match 'rm -f known_file.env  # high-stakes-ok:'                 # bare marker, no reason
+content_match 'rm -f known_file.env  # high-stakes-ok:   '              # colon then only whitespace
+
+echo ""
+echo "Suppression marker must NOT reach the path/keyword matcher — that gate stays unbypassable:"
+should_match "payments/charge.py  # high-stakes-ok: this is a path, not a diff line anyway"
+
+echo ""
+echo "Suppression is per-line: an unmarked destructive line elsewhere in the same text must"
+echo "still be caught even when another line in the same blob is legitimately suppressed:"
+(
+  multi=$'rm -f known_file.env  # high-stakes-ok: regenerable local file\nos.system("reboot now")'
+  if high_stakes_content_match "$multi" | grep -q 'os.system'; then
+    printf '  ✓ unmarked line in a mixed blob still matches\n'
+  else
+    printf '  ✗ unmarked line in a mixed blob was WRONGLY suppressed\n'; FAILS=$((FAILS+1))
+  fi
+  if high_stakes_content_match "$multi" | grep -q 'known_file.env'; then
+    printf '  ✗ marked line in a mixed blob was WRONGLY still flagged\n'; FAILS=$((FAILS+1))
+  else
+    printf '  ✓ marked line in a mixed blob was correctly suppressed\n'
+  fi
+)
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All high-stakes detection tests passed."; exit 0
 else echo "$FAILS detection test(s) FAILED."; exit 1; fi

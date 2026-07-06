@@ -55,10 +55,28 @@ high_stakes_match() {
 #   match — that's a plain method call, not route registration.
 HIGH_STAKES_CONTENT_RE="DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE|DELETE[[:space:]]+FROM|(^|[^[:alnum:]_])rm[[:space:]]+-[a-z]*[rf]|git[[:space:]]+push[[:space:]].*--force|--no-verify|os\.system[[:space:]]*\(|shell[[:space:]]*=[[:space:]]*True|(^|[^[:alnum:]_.])eval[[:space:]]*\(|@[[:alnum:]_]+\.delete\(|methods[[:space:]]*=[[:space:]]*\[[^]]*[\"']DELETE[\"']|\.delete\([\"']"
 
+# Reviewer-authored suppression, CONTENT SCANNER ONLY — never applies to high_stakes_match's
+# path/keyword list above, which stays unbypassable by design (that's the one gate a project
+# is meant to hand-tune, not escape line by line). This exists because the content scanner is
+# a deliberately loose backstop (see comment above: "over-matching is safe"), and dogfooding
+# found real, idiomatic code it flags for no safety reason — e.g. `rm -f known_file` in a
+# hardening script that only ever deletes two specific, named, regenerable local files.
+# Rewriting such code into a worse idiom just to dodge a regex is the wrong fix.
+# A human adds `high-stakes-ok: <reason>` on the SAME line as the flagged code, with an actual
+# reason after the colon (the bare marker alone does not suppress anything) — this is a
+# one-line, auditable, per-line opt-out, not a way to silence the scanner file-wide.
+HIGH_STAKES_OK_RE='high-stakes-ok:[[:space:]]*[^[:space:]]'
+
 # high_stakes_content_match <text>: echoes matching lines; returns 0 if any matched, 1 if none.
+# Lines the content regex hits are dropped if that SAME line also carries a valid
+# high-stakes-ok marker — suppression is purely additive filtering on top of the match, so it
+# can never widen what the scanner catches, only narrow an already-flagged line.
 high_stakes_content_match() {
   local matched
   matched=$(printf '%s\n' "$1" | grep -Ei "$HIGH_STAKES_CONTENT_RE" 2>/dev/null)
+  if [ -n "$matched" ]; then
+    matched=$(printf '%s\n' "$matched" | grep -Ev "$HIGH_STAKES_OK_RE")
+  fi
   if [ -n "$matched" ]; then printf '%s\n' "$matched"; return 0; fi
   return 1
 }

@@ -30,6 +30,7 @@ TESTS=(
   test-close-milestone.sh
   test-doctor.sh
   test-lint.sh
+  test-test-cmd.sh
 )
 
 # Drift guard: every scripts/test-*.sh MUST be listed above, or a newly-added guard test would

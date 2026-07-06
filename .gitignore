@@ -43,3 +43,6 @@ node_modules/
 
 # Local audit report (not shipped)
 AUDIT.md
+
+# Scratch mission prompt containing a live API key — never commit
+MODELCOSTGUARD-MISSION-PROMPT.md

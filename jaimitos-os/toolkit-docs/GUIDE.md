@@ -295,6 +295,14 @@ and the headless loop never commits or pushes it. Still a backstop, not exhausti
 destructive endpoint on its own merits and tag its phase `Mode: supervised` rather than assuming
 the content matcher alone will catch every framework's delete-route syntax.
 
+The **content scanner only** (never the path/keyword list — that one stays unbypassable) accepts
+a one-line, human-authored suppression: add `high-stakes-ok: <reason>` on the same line as the
+flagged code once you've actually reviewed it (a bare marker with no reason after the colon does
+not suppress anything). This exists because the content scanner is deliberately loose — dogfooding
+found it flagging idiomatic `rm -f known_file` in a hardening script that only ever deleted two
+named, regenerable local files, and the wrong fix is rewriting working code into a worse idiom
+just to dodge a regex.
+
 ### Enforcement reality (deterministic layer vs advisory layer)
 Be honest about what actually *enforces* versus what merely *advises* — different tiers:
 
