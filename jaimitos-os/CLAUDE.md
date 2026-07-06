@@ -43,6 +43,8 @@
   worktree isolation; the in-session loops share the tick gate but not that isolation.
 - The `evaluator` subagent grades completion independently — never mark a phase
   done on the builder's say-so alone.
+- `/phase`'s four stages (research/plan/execute/verify) each run as their own subagent; pin any
+  of them to a specific model via `/models` (or `scripts/models.sh`) — set once, applies until changed.
 - `touch AGENT_STOP` halts the loop at the next tool call (it can't claw back a call already
   in flight). Write STEER.md to redirect a running loop.
 

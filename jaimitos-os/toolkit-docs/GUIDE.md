@@ -78,10 +78,15 @@ your-repo/
     │   ├── test-gate.sh           # opt-in deterministic test gate (LEAN_TEST_GATE)
     │   ├── commit-on-stop.sh      # honest git checkpoint each turn (secret-scans before committing)
     │   └── ownership-nudge.sh     # reminds you to ADR / teach-back / run the mapme skill after changes
-    └── lib/                       # 3 SOURCED libraries (not event hooks)
-        ├── _secret-scan.sh        # SHARED: filename+content secret scan (commit-on-stop + tick + autopilot)
-        ├── _high-stakes.sh        # SHARED: high-stakes path list + content matcher (the supervised gate)
-        └── _test-cmd.sh           # SHARED: resolves the project test command (test-gate + test-evidence)
+    ├── lib/                       # 3 SOURCED libraries (not event hooks)
+    │   ├── _secret-scan.sh        # SHARED: filename+content secret scan (commit-on-stop + tick + autopilot)
+    │   ├── _high-stakes.sh        # SHARED: high-stakes path list + content matcher (the supervised gate)
+    │   └── _test-cmd.sh           # SHARED: resolves the project test command (test-gate + test-evidence)
+    └── skills/                    # 10 workflow/ownership skills (see skills/README.md; NOT copied here:
+                                    #   setup-jaimitos-os is the global-only installer meta-skill)
+        ├── roadmap/ · milestone/ · adr/                              # planning
+        ├── ship-check/ · scope-guard/ · explain-diff/ · unstick/     # review + debugging (report-only x3)
+        └── teach-back/ · mapme/ · quizme/                            # ownership
 ```
 
 > **Canonical source:** the repo-root `README.md` is the master map; this GUIDE is the single
