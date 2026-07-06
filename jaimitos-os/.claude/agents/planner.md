@@ -35,7 +35,7 @@ whatever context you need must be in your prompt).
 ## What NOT to do
 - Do not touch docs/ROADMAP.md's checkboxes or its "Done when:" line — reproduce that text
   into the plan file, never edit the source of truth.
-- Do not write source code, tests, or anything under src/tests/ (or your project's
+- Do not write source code, tests, or anything under src/, tests/ (or your project's
   equivalents) — that's the executor's job.
 - Do not invoke or reference the evaluator — verification happens after execution, not here.
 
