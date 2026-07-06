@@ -122,19 +122,17 @@ should_match "payments/charge.py  # high-stakes-ok: this is a path, not a diff l
 echo ""
 echo "Suppression is per-line: an unmarked destructive line elsewhere in the same text must"
 echo "still be caught even when another line in the same blob is legitimately suppressed:"
-(
-  multi=$'rm -f known_file.env  # high-stakes-ok: regenerable local file\nos.system("reboot now")'
-  if high_stakes_content_match "$multi" | grep -q 'os.system'; then
-    printf '  ✓ unmarked line in a mixed blob still matches\n'
-  else
-    printf '  ✗ unmarked line in a mixed blob was WRONGLY suppressed\n'; FAILS=$((FAILS+1))
-  fi
-  if high_stakes_content_match "$multi" | grep -q 'known_file.env'; then
-    printf '  ✗ marked line in a mixed blob was WRONGLY still flagged\n'; FAILS=$((FAILS+1))
-  else
-    printf '  ✓ marked line in a mixed blob was correctly suppressed\n'
-  fi
-)
+multi=$'rm -f known_file.env  # high-stakes-ok: regenerable local file\nos.system("reboot now")'
+if high_stakes_content_match "$multi" | grep -q 'os.system'; then
+  printf '  ✓ unmarked line in a mixed blob still matches\n'
+else
+  printf '  ✗ unmarked line in a mixed blob was WRONGLY suppressed\n'; FAILS=$((FAILS+1))
+fi
+if high_stakes_content_match "$multi" | grep -q 'known_file.env'; then
+  printf '  ✗ marked line in a mixed blob was WRONGLY still flagged\n'; FAILS=$((FAILS+1))
+else
+  printf '  ✓ marked line in a mixed blob was correctly suppressed\n'
+fi
 
 echo ""
 echo "Path allowlist — a separate, git-tracked FILE (.claude/high-stakes-path-allowlist) that"
