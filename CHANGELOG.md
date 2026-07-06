@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+_Next milestone: **v2.2.0 — toolkit→project sync mechanism** (let an already-scaffolded project
+pull in later toolkit fixes without clobbering customizations). Scope + open design decisions in
+`PLAN-v2.2-toolkit-sync.md`._
+
 ## [2.1.0] — 2026-07-06
 
 Per-stage model configuration (the `researcher`/`planner`/`executor`/`evaluator` subagents and the
