@@ -183,6 +183,16 @@ echo "  an allowlist entry for path A must NOT suppress a different path B:"
 set_allowlist 'docs/ADR-001-decimal-money-as-yaml-strings.md: real reason'
 allow_should_match "docs/other-money-file.md"
 
+echo "  adversarial: matching must be EXACT, not prefix/substring — an entry for path A must"
+echo "  still flag any path B for which A is a prefix, a suffix, or a directory-prefix of B"
+echo "  (mutation guard: would fail if _high_stakes_allowlisted() were ever changed from"
+echo "  [ \"\$entry\" = \"\$path\" ] to a prefix/substring test like \`case \"\$path\" in \"\$entry\"*)\`):"
+set_allowlist 'docs/money.md: real reason, adversarial prefix/substring regression guard'
+allow_should_ignore "docs/money.md"          # exact entry -> suppressed, as expected
+allow_should_match "docs/money.md.bak"       # entry is a PREFIX of this path -> must still flag
+allow_should_match "xdocs/money.md"          # entry is a SUFFIX of this path -> must still flag
+allow_should_match "docs/money.md/sub.txt"   # entry is a DIR-PREFIX of this path -> must still flag
+
 echo "  missing allowlist file entirely -> path matching behaves exactly as before:"
 clear_allowlist
 allow_should_match "docs/ADR-001-decimal-money-as-yaml-strings.md"
