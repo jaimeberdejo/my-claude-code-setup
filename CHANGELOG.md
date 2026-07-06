@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.2.0] — 2026-07-06
 
 ### Added
 - **`scripts/sync.sh`** — lets an already-scaffolded project pull in later `jaimitos-os` toolkit
