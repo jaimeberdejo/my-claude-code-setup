@@ -4,6 +4,59 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] — 2026-07-07
+
+Surgical patch closing the trust-boundary findings from the v2.2.0 adversarial audit
+(`AUDIT-JAIMITOS-OS-V2.2.md`). No new features, no redesign — every fix makes a failure mode
+**fail safe / route to manual review / force supervised**, and each ships with a regression test
+that reproduces the bug and proves it closed. Each fix was re-verified by an independent adversarial
+reviewer.
+
+### Fixed
+- **High-stakes gate self-exemption (Critical).** A phase could disable its own high-stakes gate by
+  editing `.claude/high-stakes-path-allowlist` (self-exempt) or `.claude/lib/_high-stakes.sh`
+  (self-narrow `HIGH_STAKES_RE`) in the *same* commit `scripts/tick.sh` then reads — neither path
+  matches `HIGH_STAKES_RE` itself, so the change was invisible to the keyword scan, and under
+  `autopilot --pr` the phase auto-committed and pushed. `tick.sh` now exact-line-matches those two
+  gate-config files in the phase diff and forces supervised review (exit 3), regardless of contents.
+- **`sync.sh` silently truncated a multi-line `HIGH_STAKES_RE` (Critical).** The `_high-stakes.sh`
+  mixed-merge treated `HIGH_STAKES_RE=` as a single physical line; a backslash-continued or
+  quote-split value was truncated while reporting `merged`, corrupting the safety regex. The merge
+  now rejects a trailing-backslash / unbalanced-quote shape and validates the merged file with
+  `bash -n` before writing — either failure routes to manual review with the project file untouched.
+- **`sync.sh` agent `model:` merge could destroy a file (Critical).** A stray body `model:` line, a
+  frontmatter-less file, or unclosed frontmatter could cause the whole project agent file to be
+  replaced while reporting success. `model:` is now only merged inside a well-formed `---`…`---`
+  frontmatter block; anything else routes to manual review, byte-identical.
+- **`sync.sh` `paths:` block dropped paths after an unindented comment (High).** A column-0 `#`
+  comment inside a `rules/high-stakes.md` `paths:` block silently ended the block, dropping later
+  paths. Blank, indented, and bare-comment lines now stay in the block; only a real top-level key
+  ends it; a garbage line routes to manual review.
+- **`test-high-stakes.sh` could not fail (High).** A block of content-suppression assertions
+  incremented its failure counter inside a `(…)` subshell, so a real regression in that
+  security-gate logic printed `✗` yet the suite exited 0. The block now runs at top level.
+- **`test-test-cmd.sh` could not fail.** The same swallowed-counter bug, worse: all 15 resolver
+  scenarios ran the assertion inside a subshell, so the entire suite always exited 0. Assertions now
+  `return` their status and each scenario propagates it. (No latent resolver failure was hiding — the
+  resolver was correct; the suite simply couldn't report one.) A re-scan confirmed no other
+  `scripts/test-*.sh` has this pattern.
+
+### Changed
+- `scripts/test-sync.sh`: corrected the test-13 fixture, which set an **unquoted** `HIGH_STAKES_RE`
+  with bare `(` `)` `|` — invalid bash that could never source in a real project (the gate would be
+  dead). The new `bash -n` guard correctly refused it; the fixture is now single-quoted like every
+  real `_high-stakes.sh`. Added regression tests for all six fixes above.
+
+### Known limitations (tracked, out of scope for this patch)
+- **`.claude/.phase-base` is trusted, not verified.** The high-stakes/secret scan runs over
+  `${phase-base}..HEAD`; a builder with write access to `.claude/` (i.e. headless
+  `--dangerously-skip-permissions`) can forge `.phase-base` to exclude a malicious commit and evade
+  *both* the new gate-config guard and the original matcher. This is the same forgeable-orchestrator-
+  state class as the audit's M1 and is the top hardening target for the next milestone.
+- `merge_hs_lib`'s quote-parity shape check is syntax-blind: a valid single-line value with an
+  apostrophe inside double quotes (`HIGH_STAKES_RE="it's…"`) is over-conservatively routed to manual
+  review. This fails *safe* (a needless prompt, never data loss) and is left as-is deliberately.
+
 ## [2.2.0] — 2026-07-06
 
 ### Added
