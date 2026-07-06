@@ -9,7 +9,8 @@ delete afterward).
 This guide is part of **[jaimitos-claude-setup](../../README.md)** (the repo-root README is the
 master map). Drop the `jaimitos-os/` folder's contents into any repo and you have the whole
 system: an evidence-gated, auto-ticked roadmap with auto-written state, deterministic hooks, an
-independent evaluator, path-scoped rules, one shared completion gate, and two autonomous loops
+four per-phase-stage subagents (research, plan, execute, independent verify — each pinnable to
+its own model), path-scoped rules, one shared completion gate, and two autonomous loops
 (one watchable, one headless) — all project-neutral.
 
 > **The one idea:** `CLAUDE.md` advises · **hooks + `tick.sh` enforce** · **docs hold knowledge**.
@@ -89,10 +90,11 @@ your-repo/
 > the code, the code wins.
 
 ### Why "lean"
-No research fan-out, no multi-agent planning swarm — **one context at a time**. You trade a
-little automatic magic for a large token saving (typically several-fold; measure your own) and
-full visibility. Persistent state lives in `docs/` + git, so it survives `/clear`, compaction,
-and fresh processes.
+No PARALLEL research fan-out, no multi-agent planning swarm — `/phase`'s four stages
+(research/plan/execute/verify) run **strictly one at a time**, each a fresh, narrowly-scoped
+subagent call, never several exploring simultaneously. You trade a little automatic magic for a
+large token saving (typically several-fold; measure your own) and full visibility. Persistent
+state lives in `docs/` + git, so it survives `/clear`, compaction, and fresh processes.
 
 ---
 
@@ -945,13 +947,15 @@ ONE LINE       Automate the typing, never the judgment.
 ---
 
 ### One paragraph to remember
-Native Claude Code plus a `docs/` folder, seven short hooks, three shared libs, an independent
-evaluator, one shared completion gate, and a pack of portable skills reproduce what heavyweight
-frameworks automate — spec, roadmap, persistent state, decision log, phase execution, verification —
-at a fraction of the tokens, because there's no research fan-out and one context at a time. Each
-phase runs research → plan → execute → verify; the builder never marks its own work done, and only
-`tick.sh` — on an independent PASS, fresh evidence, a clean scan, and no high-stakes change — flips a
-checkbox. You drive it manually for stakes that warrant it, watch it with `/autopilot`, or hand it to
-`autopilot.sh` overnight — with a kill-switch, an independent grader, a shared gate, and a budget cap
-as your safety net. Learn it on the practice project; run real work on it — manually for the
-high-stakes parts, autonomously for the rest.
+Native Claude Code plus a `docs/` folder, seven short hooks, three shared libs, four per-phase-stage
+subagents (research/plan/execute/independent verify, each independently pinnable to its own model),
+one shared completion gate, and a pack of portable skills reproduce what heavyweight frameworks
+automate — spec, roadmap, persistent state, decision log, phase execution, verification — at a
+fraction of the tokens, because each stage runs strictly one at a time, never a parallel
+research/planning swarm. Each phase runs research → plan → execute → verify, one subagent at a
+time; the builder never marks its own work done, and only `tick.sh` — on an independent PASS, fresh
+evidence, a clean scan, and no high-stakes change — flips a checkbox. You drive it manually for
+stakes that warrant it, watch it with `/autopilot`, or hand it to `autopilot.sh` overnight — with a
+kill-switch, an independent grader, a shared gate, and a budget cap as your safety net. Learn it on
+the practice project; run real work on it — manually for the high-stakes parts, autonomously for the
+rest.

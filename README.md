@@ -6,8 +6,9 @@ loops (one you can watch, one for overnight), path-scoped rules, and a pack of p
 skills — at a fraction of the token cost of heavyweight planning frameworks.
 
 It reproduces what big multi-agent frameworks automate — spec, roadmap, persistent state,
-decision log, phase execution, independent verification — with **one context at a time, no
-research fan-out**, so you keep full visibility and a 1-experienced-dev token budget.
+decision log, phase execution, independent verification — with **each phase run strictly
+sequentially (research → plan → execute → verify, one subagent at a time), never a parallel
+research/planning swarm**, so you keep full visibility and a 1-experienced-dev token budget.
 
 > **The one idea:** `CLAUDE.md` advises · **hooks enforce** · **docs hold knowledge**.
 > Never ask one to do another's job. And **match ceremony to stakes**: tiny/reversible →

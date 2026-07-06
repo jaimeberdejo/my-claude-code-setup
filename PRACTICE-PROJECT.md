@@ -86,6 +86,8 @@ Session 3 — Phase 3 supervised
   /resume → /phase → curl the endpoint + run the CLI yourself → /wrap → /clear
   # Phase 3 is Mode: supervised, so the tick gate REFUSES to auto-tick it —
   # that's why it's a manual session, not an autopilot one.
+  # Under the hood, /phase itself delegates research/plan/execute to their own subagents
+  # (verify already did) — each independently pinnable to a model via /models, if you want.
 
 Session 4 — Phase 4 headless
   bash scripts/autopilot.sh 2
