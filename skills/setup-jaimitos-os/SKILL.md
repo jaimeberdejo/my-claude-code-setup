@@ -53,21 +53,32 @@ Keep the two in sync. If the project genuinely has no high-stakes surface, say s
 minimal regex/rule. After editing, `scripts/doctor.sh` will confirm the regex is no longer the
 shipped default.
 
-## Step 5 — Stub the spec and verify
+## Step 5 — Configure per-stage models (optional; applies to both brownfield and greenfield)
+`/phase` delegates its four stages (research, plan, execute, verify) to four subagents —
+`.claude/agents/researcher.md`, `planner.md`, `executor.md`, `evaluator.md`. By default the
+first three inherit whatever model is running the session, and `evaluator.md` ships pinned to
+`sonnet`. Ask the user once, briefly: "Do you want to pin any of research / plan / execute /
+verify to a specific model, or leave the defaults?" If they name any, run
+`bash scripts/models.sh <role>=<value> ...` (the same deterministic script `/models` wraps —
+never edit the frontmatter by hand). If they say "leave it," do nothing and move on without
+asking again during this setup — `/models` (or `scripts/models.sh` directly) is always
+available later.
+
+## Step 6 — Stub the spec and verify
 - If `docs/SPEC.md` is still the template, offer to run the grilling/`roadmap` flow to fill it.
 - Run `bash scripts/doctor.sh` and report the result. If not a git repo yet, suggest `git init`.
 - Run `bash scripts/test-hooks.sh` to confirm the hooks work.
 
-## Step 6 — Report
+## Step 7 — Report
 - **Brownfield:** tell the user what commands you wired into CLAUDE.md, which high-stakes
-  paths you set, the doctor result, and the single next action (usually: write the SPEC, then
-  run `roadmap`).
+  paths you set, what (if anything) you configured in Step 5, the doctor result, and the single
+  next action (usually: write the SPEC, then run `roadmap`).
 - **Greenfield:** tell the user CLAUDE.md and the high-stakes gate are intentionally left as
   shipped defaults for now — they'll be filled automatically (CLAUDE.md) or flagged as a
-  reminder (high-stakes paths) by the `roadmap` skill once `docs/SPEC.md` exists. Report the
-  doctor result (expect its `!` warnings about placeholders — that's expected pre-SPEC, not a
-  problem) and the single next action: write the SPEC (grill first if useful), then run
-  `roadmap`.
+  reminder (high-stakes paths) by the `roadmap` skill once `docs/SPEC.md` exists. Mention what
+  (if anything) you configured in Step 5. Report the doctor result (expect its `!` warnings
+  about placeholders — that's expected pre-SPEC, not a problem) and the single next action:
+  write the SPEC (grill first if useful), then run `roadmap`.
 
 ## Guardrails
 - Deterministic copy via install.sh; intelligent customization by you. Never blur the two.
