@@ -44,15 +44,25 @@ silently fall through to another phase. This is for targeted and parallel work (
      is for), and its tick will need a manual `/wrap` afterward; `scripts/tick.sh` will refuse to
      auto-tick it regardless. This is informational, not a stop — building supervised phases
      interactively is the sanctioned path for them.
-3. **Research (only if the phase needs it).** If the phase uses an unfamiliar API, library,
-   or pattern, or touches code you haven't read, do a brief research pass FIRST: read the
-   relevant existing code, and consult docs (context7 / web) if available. Capture the
-   findings and the chosen approach in 3–6 bullets at the top of the plan. Skip this
-   entirely when the path is obvious — research is conditional, not ceremony. This is the
-   R in research → plan → execute → verify.
-4. Write a short plan to docs/plans/<phase-name>.md (research notes + tasks + "Done when").
-5. For each task in order: write a failing test first, then minimal code to pass.
-   Run the test. If green, continue. If red after 3 attempts, STOP and report the blocker.
+3. **Research (only if the phase needs it) — delegated to the `researcher` subagent.** If the
+   phase uses an unfamiliar API, library, or pattern, or touches code you haven't read, invoke
+   the `researcher` subagent (Task tool) with a prompt containing: the phase's exact heading, its
+   "Done when:" line(s), and why you judged research needed. Capture its full returned text
+   verbatim — you'll pass it to the planner in step 4 unchanged, since each Task-tool call gets a
+   fresh context with no memory of this one. Skip this step entirely when the path is obvious —
+   research is conditional, not ceremony. This is the R in research → plan → execute → verify.
+4. **Plan — delegated to the `planner` subagent.** Invoke the `planner` subagent (Task tool)
+   with a prompt containing: the phase's exact heading, its "Done when:" line(s), and — only if
+   step 3 ran — the researcher's findings verbatim from step 3 (omit this entirely if step 3 was
+   skipped; do not invent findings). The planner writes a plan file under docs/plans/ (research
+   notes + tasks + "Done when") and reports back the exact path it wrote. Confirm that file
+   exists before continuing.
+5. **Execute — delegated to the `executor` subagent.** Invoke the `executor` subagent (Task
+   tool) with a prompt containing: the phase's exact heading and the plan file path from step 4.
+   The executor runs the TDD loop per task (failing test, minimal code, run test, commit) and
+   reports back what it completed. If it reports a task still red after 3 attempts, STOP and
+   report the blocker exactly as it described it — do not retry the task yourself or proceed to
+   step 6.
 6. When all tasks pass, invoke the `evaluator` subagent as a SELF-CHECK. If it returns
    NEEDS_WORK, address the items and re-run it (max 2 rounds). If still NEEDS_WORK, STOP
    and report — do not proceed.
@@ -69,9 +79,12 @@ Constraints: touch src/, tests/, and docs/ freely. You MAY also touch project co
 manifests when the task genuinely needs it (package.json, pyproject.toml, lockfiles,
 migrations, *.example env files) — but call out any such change explicitly. Never touch
 unrelated files. Commit after each green task. Do not ask for confirmation between tasks.
+These constraints apply to whichever subagent is doing the work in steps 3–5, not only to
+you directly — they're restated in each subagent's own file, but you (the orchestrating
+session) remain responsible for relaying them via the prompts you construct in steps 3–5.
 
-HARD RULE — do not move your own goalposts. While building the current phase you MUST NOT
-edit that phase's heading or its `Done when:` line in docs/ROADMAP.md, and you must not
-weaken, reword, or delete any of its acceptance criteria. You are graded against that exact
-standard; altering it is a false PASS. You MAY append NEW phases or add notes elsewhere in
-the roadmap, but never alter the criteria you are being graded on.
+HARD RULE — do not move your own goalposts. While building the current phase you (and any
+subagent you delegate to) MUST NOT edit that phase's heading or its `Done when:` line in
+docs/ROADMAP.md, and must not weaken, reword, or delete any of its acceptance criteria. You are
+graded against that exact standard; altering it is a false PASS. You MAY append NEW phases or
+add notes elsewhere in the roadmap, but never alter the criteria you are being graded on.
