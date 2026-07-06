@@ -68,21 +68,40 @@ requiring confirmation for anything ambiguous.
 - **`scripts/test-sync.sh`** (TDD): a stale overwrite-safe file gets updated; a customized
   `HIGH_STAKES_RE`/`model:` survives; a project doc is never touched; missing stamp handled.
 
-## Open design decisions — settle before writing the TDD plan
+## Resolved design decisions (locked 2026-07-06)
 
-- **[DECISION 1] Drift detection source.** (a) Ship a **per-release hash manifest** in the scaffold
-  (self-contained, but needs release discipline to regenerate each version), OR (b) compute hashes
-  **on the fly by diffing against a local toolkit checkout** the user points `sync.sh` at (no
-  manifest to maintain, but requires the toolkit repo present locally). (b) is simpler to ship and
-  matches how a dev would actually run it; (a) is more portable/CI-friendly.
-- **[DECISION 2] Must-merge handling.** (a) **Value-preserving auto-merge** (take upstream body,
-  re-inject the project's `HIGH_STAKES_RE`/`model:`/`paths:` value) with a shown diff + confirm;
-  (b) **skip-and-warn** (never touch mixed files, just report "these drifted, reconcile by hand");
-  (c) **full 3-way merge** leaving conflict markers. (a) is the most useful but the most code; (b)
-  is the safe minimum that still surfaces drift.
-- **[DECISION 3] Release discipline.** Should v2.2.0 also introduce a **VERSION-bump-per-fix (or
-  auto-generated hash manifest)** convention so drift is even detectable, since the root cause was
-  a fix shipping with no version change? This is a process change beyond `sync.sh` itself.
+- **[DECISION 1 — RESOLVED] Drift detection = diff against a local toolkit checkout.** No manifest
+  yet. `scripts/sync.sh --toolkit <path>` (e.g. `--toolkit ~/projects/Claude_SETUP/jaimitos-os`)
+  compares the project's files directly against that local checkout; a helpful error if the path is
+  missing/invalid. Rationale: optimize for the real dogfooded failure mode (dev has the toolkit
+  checked out, fixes it, needs existing scaffolded projects to receive the fix); a manifest
+  reintroduces exactly the release-discipline dependency that caused the original drift. A
+  per-release hash manifest can be a **later packaging/CI milestone** once `sync.sh` is proven.
+- **[DECISION 2 — RESOLVED] Mixed files = narrow value-preserving auto-merge + confirm.** Take the
+  toolkit's updated body but re-inject the project's own value, show the diff, require confirmation
+  before writing. **Only known mixed values** are merged: `_high-stakes.sh`'s `HIGH_STAKES_RE=`,
+  agent files' `model:` frontmatter, rules files' `paths:`. **No generic/clever merge engine.** If
+  a mixed file does not match the expected shape, **fail safe**: skip it, report why, tell the user
+  to reconcile manually — never guess, never clobber. Per-file flow: (1) read toolkit file,
+  (2) read project file, (3) extract the known project-owned value, (4) apply it onto the updated
+  toolkit file, (5) show the diff, (6) confirm, (7) then write.
+- **[DECISION 3 — DEFERRED] Release discipline (VERSION-bump-per-fix / auto hash manifest).** Not
+  in v2.2.0. Revisit if/when distribution (a manifest) is actually needed.
+
+## Locked implementation rules (from the decisions above)
+
+- **Conservative, never a blind two-way overwrite.** Four tiers, explicit:
+  1. **overwrite-safe toolkit-owned** → update from the local checkout (show diff);
+  2. **never-touch project-owned** → skip;
+  3. **known mixed** → narrow value-preserving merge → diff → confirm → write;
+  4. **unknown / unexpectedly-shaped / customized-beyond-recognition** → **fail safe, do NOT clobber**;
+     report and let the user decide.
+- `--toolkit <path>` is explicit and required; clear error if absent.
+- `--dry-run` shows every planned change per tier without writing.
+- **Heavily tested — normal AND malformed cases.** For a malformed mixed file the test asserts the
+  tool skips + reports + leaves the file byte-identical (never guesses, never clobbers).
+- Bash 3.2; reuse `install.sh`'s `find`+exclusions for enumeration; reuse `doctor.sh`'s
+  fingerprint-diff pattern; `jq` is available.
 
 ## Deferred v2.2+ items carried from the v2.1.0 review (fold in or track separately)
 
