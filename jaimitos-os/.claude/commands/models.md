@@ -15,6 +15,10 @@ print its output verbatim, and if it exits non-zero, report the failure as-is â€
 with a different argument shape or attempt to fix the input yourself; the script's own error
 message already says what's wrong.
 
+If `CLAUDE_CODE_SUBAGENT_MODEL` is set in the environment, the script's output will include a
+warning that it overrides all four settings shown (env > per-invocation > frontmatter) â€” print
+that warning verbatim too, same as any other script output.
+
 **The four roles, and which `/phase` step each is invoked from:**
 | Key | Role | `/phase` step |
 |---|---|---|

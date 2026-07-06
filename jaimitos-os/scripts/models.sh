@@ -20,6 +20,9 @@
 #                                                                inherit; evaluator -> sonnet
 #                                                                (each role's OWN shipped default)
 #
+# If the SAME key is given more than once in one invocation (e.g. exec=opus exec=haiku), the
+# LAST occurrence in argv wins -- standard last-write-wins, not an error.
+#
 # No model-name allowlist: whatever string you give is written verbatim. Claude Code is the
 # authority on valid model names/aliases and validates at actual invocation time -- a hardcoded
 # list here would go stale the moment a new alias ships. Only YAML-syntax validity is checked.
