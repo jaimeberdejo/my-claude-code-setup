@@ -3,10 +3,13 @@ Run the next unchecked phase of docs/ROADMAP.md, autonomously:
 **Optional argument = a specific phase heading to target** (e.g. `/phase "## Phase 4 —
 Hardening"`, or enough of the heading to be unambiguous, e.g. `/phase "Phase 4"`). If given, skip
 "pick the first phase with unchecked items" below and instead find the roadmap phase whose
-heading matches the argument (exact full-line match preferred; if the argument is a partial
-string, match the unique `## ` heading that contains it — if more than one heading matches, STOP
-and ask which one; if ZERO headings match at all, STOP and report that no such phase exists in
-docs/ROADMAP.md — never fall through to picking the first open phase instead). That phase must
+heading matches the argument. Check for an exact full-line match FIRST: if a heading equals the
+argument verbatim, use it immediately, even if the same string is also a partial match inside
+some other heading's line. Only when there is NO exact full-line match does the argument get
+treated as a partial string — match the unique `## ` heading that contains it — if more than one
+heading matches, STOP and ask which one; if ZERO headings match at all, STOP and report that no
+such phase exists in docs/ROADMAP.md — never fall through to picking the first open phase
+instead. That phase must
 still have at least one unchecked `- [ ]` item, or STOP and report it's already done — do not
 silently fall through to another phase. This is for targeted and parallel work (see
 `/autopilot-parallel`); bare `/phase` (no argument) is unchanged.
