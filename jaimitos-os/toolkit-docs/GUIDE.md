@@ -232,6 +232,51 @@ That last property drives the brownfield-only steps:
 
 The two things that make brownfield different: **merge don't overwrite**, and **`mapme` first**.
 
+### Keeping a scaffolded project up to date
+Once installed, a project's copy of the toolkit is a snapshot — it doesn't automatically pick up
+later fixes shipped to `jaimitos-os/`. That's the gap `scripts/sync.sh` closes: it lets an
+already-scaffolded project pull in newer toolkit fixes without losing the customizations you made
+to it (a custom `HIGH_STAKES_RE`, a pinned per-stage `model:`, your `paths:` in
+`.claude/rules/high-stakes.md`). The motivating real case: a project scaffolded before the 2.1.0
+fix to `resolve_test_cmd()` (reading `LEAN_TEST_CMD` from `settings.json` as a fallback) kept its
+older, buggier `.claude/lib/_test-cmd.sh` forever — there was no path to pull that fix in short of
+re-copying the whole scaffold by hand.
+
+Usage:
+```bash
+bash scripts/sync.sh --toolkit <path-to-local-jaimitos-os> [--dry-run] [--yes]
+```
+`--toolkit` (required) points at a local `jaimitos-os/` checkout to diff against and copy from —
+e.g. `~/jaimitos-claude-setup/jaimitos-os`. `--dry-run` previews the full plan and writes nothing.
+`--yes` skips the per-file confirmation prompt, but only for non-mixed tiers (see below) — it never
+auto-applies a mixed merge.
+
+Every toolkit-shipped file is classified into one of four tiers:
+- **Overwrite-safe** — toolkit-owned logic with no project values inside (hooks, `scripts/*.sh`,
+  commands, skills). Diffed, confirmed, then copied over.
+- **Never-touch** — project-owned content (`docs/`, `CLAUDE.md`, `SCAFFOLD.md`, `.gitignore`).
+  Always skipped; sync never writes these.
+- **Known-mixed** — a toolkit-owned file with exactly one project-customized value inside it:
+  `.claude/lib/_high-stakes.sh`'s `HIGH_STAKES_RE=` line, an agent's `model:` frontmatter line, or
+  `.claude/rules/high-stakes.md`'s `paths:` block. Sync merges the toolkit's updated body with
+  *your* value preserved — always prompts for confirmation, regardless of `--yes`.
+- **Unknown/malformed** — anything unclassified (e.g. `.claude/settings.json`), or a known-mixed
+  file whose shape doesn't match what sync expects. Always left for manual review; never guessed
+  at, never clobbered.
+
+Safety posture: nothing is ever written without first showing a diff (or, for a mixed merge, a
+diff of the proposed merge result); `--dry-run` lets you preview the whole plan risk-free;
+`--yes` only speeds up the non-mixed tiers, never a mixed merge; and a file sync can't confidently
+classify is always routed to manual review rather than guessed at. `settings.json` is intentionally
+report-only (manual merge) — sync never writes it.
+
+**Current limitation:** sync detects drift by diffing against a LOCAL toolkit checkout you point
+`--toolkit` at — there's no shipped manifest of toolkit versions yet, so you need a clone of
+`jaimitos-claude-setup` on disk to sync from. `.github/workflows/*` is never synced (excluded from
+enumeration); only `.github/scripts/*.sh` is synced, and only into a project that already has a
+`.github/` dir (i.e. already opted into CI via a prior `install.sh --with-ci`) — sync won't
+silently add CI to a project that never asked for it.
+
 ---
 
 ## Part 3 — The core loop

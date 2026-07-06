@@ -181,6 +181,14 @@ if [ -f CLAUDE.md ]; then
 fi
 echo ""
 
+echo "Toolkit sync:"
+if [ -f .claude/.jaimitos-os-version ]; then
+  ok "scaffolded from jaimitos-os $(cat .claude/.jaimitos-os-version)"
+  warn "run 'bash scripts/sync.sh --toolkit <path-to-jaimitos-os> --dry-run' to check for toolkit"
+  warn "  updates and apply them without clobbering your customizations"
+fi
+echo ""
+
 if [ "$PROBLEMS" -ne 0 ]; then
   echo "$PROBLEMS problem(s) found. Fix the ✗ items above before an unattended run."
   [ "$FIX" -eq 1 ] && echo "(--fix repairs chmod/dirs only — it can't restore missing libs/hooks/scaffold; run ./install.sh --force for those.)"

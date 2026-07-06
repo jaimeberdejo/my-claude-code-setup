@@ -20,6 +20,8 @@ project (so it doesn't pollute it); read it on GitHub:
 - **docs/** — SPEC/ROADMAP/STATE/ARCHITECTURE templates + `decisions/` for ADRs.
 - **scripts/** — `autopilot.sh` (guarded autonomous loop), `tick.sh` (the completion gate), `doctor.sh`, `test-hooks.sh`.
 
+Later toolkit fixes? Run `bash scripts/sync.sh --toolkit <path-to-your-local-jaimitos-os-checkout> --dry-run` to preview pulling them in without losing your customizations.
+
 CI is **opt-in**: re-run the installer with `--with-ci` to also drop a
 `.github/workflows/jaimitos-os-ci.yml` into your project.
 
