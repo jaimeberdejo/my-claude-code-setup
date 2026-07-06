@@ -203,7 +203,7 @@ hs_line_count() {
 # HIGH_STAKES_RE= line substituted in. Returns 1 (outfile untouched/empty, $MIXED_REASON set) if
 # either copy doesn't have EXACTLY ONE such line.
 merge_hs_lib() {
-  local projfile="$1" toolkitfile="$2" outfile="$3" pn tn proj_line
+  local projfile="$1" toolkitfile="$2" outfile="$3" pn tn proj_line sq dq
   pn=$(hs_line_count "$projfile")
   if [ "$pn" -ne 1 ]; then
     MIXED_REASON="project copy has $pn HIGH_STAKES_RE= line(s) (expected exactly 1)"; return 1
@@ -212,11 +212,25 @@ merge_hs_lib() {
   if [ "$tn" -ne 1 ]; then
     MIXED_REASON="toolkit copy has $tn HIGH_STAKES_RE= line(s) (expected exactly 1)"; return 1
   fi
-  proj_line=$(grep -E '^HIGH_STAKES_RE=' "$projfile")
+  proj_line=$(grep -E '^HIGH_STAKES_RE=' "$projfile" | head -1)
+  # C2 shape guard: the value must be self-contained on this ONE physical line. A trailing backslash
+  # (line continuation) or an unbalanced quote means the real value spans further physical lines that
+  # grep did not capture — substituting only the first line would silently TRUNCATE the safety regex.
+  case "$proj_line" in *\\) MIXED_REASON="project HIGH_STAKES_RE= line ends with a backslash (multi-line continuation unsupported — merge by hand)"; return 1 ;; esac
+  sq=$(printf '%s' "$proj_line" | tr -cd "'" | wc -c | tr -d ' ')
+  dq=$(printf '%s' "$proj_line" | tr -cd '"' | wc -c | tr -d ' ')
+  if [ $((sq % 2)) -ne 0 ] || [ $((dq % 2)) -ne 0 ]; then
+    MIXED_REASON="project HIGH_STAKES_RE= line has an unbalanced quote (value likely spans multiple lines — merge by hand)"; return 1
+  fi
   HS_PROJ_LINE="$proj_line" awk '
     /^HIGH_STAKES_RE=/ && !done { print ENVIRON["HS_PROJ_LINE"]; done=1; next }
     { print }
   ' "$toolkitfile" > "$outfile"
+  # C2 syntax guard: never hand back a merged _high-stakes.sh that is not valid bash (a corrupted
+  # value could leave an open quote that swallows the rest of the file). bash -n it before write.
+  if ! bash -n "$outfile" 2>/dev/null; then
+    MIXED_REASON="merged _high-stakes.sh failed a bash -n syntax check (refusing to write)"; return 1
+  fi
 }
 
 # --- shape 2: .claude/agents/*.md — the ^model: frontmatter line (0 or 1; MAY be absent) -------

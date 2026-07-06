@@ -316,10 +316,11 @@ rc=$(runsync --yes)
 mktoolkit
 mkproject t13
 mkdir -p .claude/lib
-printf '#!/usr/bin/env bash\n# PROJECT_HS_BODY_V1\nHIGH_STAKES_RE=project-custom|regex(with)[chars].*\n' > .claude/lib/_high-stakes.sh
+# single-quoted, as every real _high-stakes.sh is (must be valid bash to source; the C2 guard bash -n's the merge)
+printf '#!/usr/bin/env bash\n# PROJECT_HS_BODY_V1\nHIGH_STAKES_RE='"'"'project-custom|regex(with)[chars].*'"'"'\n' > .claude/lib/_high-stakes.sh
 printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
 { [ "$rc" -eq 0 ] \
-  && grep -qF 'HIGH_STAKES_RE=project-custom|regex(with)[chars].*' .claude/lib/_high-stakes.sh \
+  && grep -qF "HIGH_STAKES_RE='project-custom|regex(with)[chars].*'" .claude/lib/_high-stakes.sh \
   && grep -q "TOOLKIT_HS_BODY_V2" .claude/lib/_high-stakes.sh \
   && ! grep -q "PROJECT_HS_BODY_V1" .claude/lib/_high-stakes.sh \
   && grep -qi "merged" "$WORK/out"; } \
@@ -348,6 +349,41 @@ printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
 { [ "$rc" -eq 0 ] && cmp -s .claude/lib/_high-stakes.sh "$WORK/t14b-before" && grep -qi "manual review" "$WORK/out"; } \
   && pass "malformed _high-stakes.sh (0 HIGH_STAKES_RE lines) → manual review, byte-identical" \
   || fail "malformed _high-stakes.sh (0 lines) mishandled (rc=$rc)"
+
+# 14c — hs_lib malformed (C2): the project's HIGH_STAKES_RE= line ends with a line-continuation
+# backslash, so its real value spans a SECOND physical line that grep's single-line capture never
+# sees — substituting only the first line would silently TRUNCATE the safety regex. Must route to
+# manual review, byte-identical, even with 'y' piped.
+mktoolkit
+mkproject t14c
+mkdir -p .claude/lib
+cat > .claude/lib/_high-stakes.sh <<'EOF'
+#!/usr/bin/env bash
+HIGH_STAKES_RE=foo\
+bar
+EOF
+cp .claude/lib/_high-stakes.sh "$WORK/t14c-before"
+printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
+{ [ "$rc" -eq 0 ] && cmp -s .claude/lib/_high-stakes.sh "$WORK/t14c-before" && grep -qi "manual review" "$WORK/out"; } \
+  && pass "C2: _high-stakes.sh HIGH_STAKES_RE= line ending in a backslash continuation → manual review, byte-identical" \
+  || fail "backslash-continuation HIGH_STAKES_RE= line was merged/truncated or not reported (rc=$rc)"
+
+# 14d — hs_lib malformed (C2): the project's HIGH_STAKES_RE= value is a single-quoted string that
+# spans two physical lines (an odd quote count on the captured line is the tell) — same truncation
+# risk as 14c, just via a quoted multi-line value instead of a backslash. Manual review, byte-identical.
+mktoolkit
+mkproject t14d
+mkdir -p .claude/lib
+cat > .claude/lib/_high-stakes.sh <<'EOF'
+#!/usr/bin/env bash
+HIGH_STAKES_RE='foo
+bar'
+EOF
+cp .claude/lib/_high-stakes.sh "$WORK/t14d-before"
+printf 'y\n' | bash "$SYNC" --toolkit "$TOOLKIT" --yes >"$WORK/out" 2>&1; rc=$?
+{ [ "$rc" -eq 0 ] && cmp -s .claude/lib/_high-stakes.sh "$WORK/t14d-before" && grep -qi "manual review" "$WORK/out"; } \
+  && pass "C2: _high-stakes.sh HIGH_STAKES_RE= line with an unbalanced (odd) quote count → manual review, byte-identical" \
+  || fail "odd-quote-count HIGH_STAKES_RE= line was merged/truncated or not reported (rc=$rc)"
 
 # 15 — agent normal merge: project's model: opus (customized) survives, toolkit's body update
 # lands, and no duplicate model: line is introduced.
