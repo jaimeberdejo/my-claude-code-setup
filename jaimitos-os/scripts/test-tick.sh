@@ -62,6 +62,9 @@ set_evidence() { printf '%s\n' "$2" > "$(_resolve "$1")/.claude/.tick-evidence.j
 good_grade()   { set_grade "$1" "$HEAD" PASS 0; }
 good_evidence(){ set_evidence "$1" "{\"passed\":true,\"run_id\":\"$HEAD\"}"; }
 runtick() { local r="$1"; shift; ( cd "$r" && bash scripts/tick.sh "$@" ) >"$WORK/out" 2>&1; echo $?; }
+# Like runtick but passes the orchestrator-trusted base via the TICK_BASE env var (headless autopilot
+# path). An empty base ("") is passed as SET-but-empty (distinct from unset) to exercise fail-closed.
+runtick_base() { local r="$1" b="$2"; shift 2; ( cd "$r" && TICK_BASE="$b" bash scripts/tick.sh "$@" ) >"$WORK/out" 2>&1; echo $?; }
 ticked()  { ! grep -q '\- \[ \] do the work' "$1/docs/ROADMAP.md"; }   # 0 if ticked
 md5of()   { md5 -q "$1" 2>/dev/null || md5sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
@@ -199,6 +202,49 @@ mkrepo t12; good_evidence t12; printf 'garbage not a grade\n' > "$REPO/.claude/.
 mkrepo t13; good_grade t13; good_evidence t13
 printf 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n' > "$REPO/.claude/.phase-base"; rc=$(runtick "$REPO")
 { [ "$rc" = 1 ] && ! ticked "$REPO"; } && pass "invalid .phase-base (unresolvable range) → fail-closed refuse" || fail "invalid phase-base mishandled (rc=$rc)"
+
+# --- TICK_BASE env (headless autopilot passes the orchestrator-derived TRUSTED base) ---
+
+# 14 — a FORGED .claude/.phase-base pointing at HEAD (empty window, would hide the phase's high-stakes
+# change) is IGNORED when TICK_BASE supplies the trusted base: tick scans the real window → exit 3.
+# Proves the trusted env overrides the untrusted file (this is the tick-level half of the .phase-base
+# forgery fix). If tick had used the forged file (==HEAD) it would refuse rc=1, so rc=3 proves override.
+mkrepo t14 auth/login.py 'def login(): return True'
+printf '%s\n' "$HEAD" > "$REPO/.claude/.phase-base"
+good_grade t14; good_evidence t14
+rc=$(runtick_base "$REPO" "$(git -C "$REPO" rev-parse HEAD~1)")
+{ [ "$rc" = 3 ] && ! ticked "$REPO"; } \
+  && pass "TICK_BASE overrides a forged .phase-base → real window scanned (exit 3)" || fail "TICK_BASE did not override forged file (rc=$rc)"
+
+# 14b — TICK_BASE with a valid base + clean range → ticks (env path works end-to-end).
+mkrepo t14b; good_grade t14b; good_evidence t14b
+rc=$(runtick_base "$REPO" "$(cat "$REPO/.claude/.phase-base")")
+{ [ "$rc" = 0 ] && ticked "$REPO"; } \
+  && pass "TICK_BASE (valid base) → ticks (env path end-to-end)" || fail "valid TICK_BASE did not tick (rc=$rc)"
+
+# 14c — strict-ancestor guard: TICK_BASE == HEAD → empty window → refuse (fail-closed, not a silent tick).
+mkrepo t14c; good_grade t14c; good_evidence t14c
+rc=$(runtick_base "$REPO" "$HEAD")
+{ [ "$rc" = 1 ] && ! ticked "$REPO"; } \
+  && pass "TICK_BASE == HEAD → refuse (empty window)" || fail "TICK_BASE==HEAD not refused (rc=$rc)"
+
+# 14d — strict-ancestor guard: bogus/unresolvable sha via env → refuse.
+mkrepo t14d; good_grade t14d; good_evidence t14d
+rc=$(runtick_base "$REPO" "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+{ [ "$rc" = 1 ] && ! ticked "$REPO"; } \
+  && pass "TICK_BASE bogus sha (unresolvable) → refuse" || fail "bogus TICK_BASE not refused (rc=$rc)"
+
+# 14e — TICK_BASE SET but EMPTY → refuse (a trusted base must be a real commit; NEVER silently fall
+# back to the untrusted .claude/.phase-base file).
+mkrepo t14e; good_grade t14e; good_evidence t14e
+rc=$(runtick_base "$REPO" "")
+{ [ "$rc" = 1 ] && ! ticked "$REPO"; } \
+  && pass "TICK_BASE set-but-empty → refuse (no silent file fallback)" || fail "empty TICK_BASE not refused (rc=$rc)"
+
+# 14f — TICK_BASE ABSENT → the /wrap path still reads .claude/.phase-base (backward compatible).
+mkrepo t14f; good_grade t14f; good_evidence t14f; rc=$(runtick "$REPO")
+{ [ "$rc" = 0 ] && ticked "$REPO"; } \
+  && pass "TICK_BASE absent → .phase-base file path intact (/wrap)" || fail "file fallback broke (rc=$rc)"
 
 echo ""
 echo "test-evidence producer tests"; echo ""

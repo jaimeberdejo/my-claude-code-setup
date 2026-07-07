@@ -111,11 +111,35 @@ case "$e_passed" in
 esac
 
 # --- 4 & 5. secret + high-stakes over the WHOLE phase diff ---
-# Require .claude/.phase-base: without it we'd fall back to HEAD~1 and silently NARROW the secret
-# and high-stakes scans to the last commit only, missing earlier phase commits. Fail closed.
-BASE=$(cat .claude/.phase-base 2>/dev/null || true)
-[ -n "$BASE" ] || refuse "missing .claude/.phase-base — cannot determine the phase scope to scan (fail-closed)"
-RANGE="${BASE}..HEAD"
+# Phase scan floor. The gates below run over BASE..HEAD; a BASE that is forged, empty, or == HEAD
+# would silently NARROW (or empty) the secret + high-stakes window, hiding a malicious commit.
+# Precedence:
+#   • TICK_BASE env SET → the orchestrator (headless scripts/autopilot.sh) derived this base in its
+#     OWN trusted shell, OUTSIDE the --dangerously-skip-permissions builder. Use it and NEVER fall
+#     back to the builder-writable file: a bad trusted env must fail closed, not silently degrade to
+#     the untrusted .claude/.phase-base (which a compromised builder can forge to HEAD to empty the
+#     scan). autopilot also overwrites .phase-base with this same trusted value before the evaluator.
+#   • TICK_BASE ABSENT → the in-session /wrap path; read the builder-written .claude/.phase-base.
+# Either source is strict-ancestor-validated below, so neither a forged env nor a forged file can
+# narrow, empty, or misdirect the scan.
+if [ -n "${TICK_BASE+set}" ]; then
+  BASE="$TICK_BASE"
+  BASE_SRC="TICK_BASE env (orchestrator-trusted)"
+  [ -n "$BASE" ] || refuse "TICK_BASE is set but empty — a trusted base must be a real commit (fail-closed)"
+else
+  BASE=$(cat .claude/.phase-base 2>/dev/null || true)
+  BASE_SRC=".claude/.phase-base"
+  [ -n "$BASE" ] || refuse "missing .claude/.phase-base — cannot determine the phase scope to scan (fail-closed)"
+fi
+# Strict-ancestor guard (BOTH sources): resolve to a real commit, require it is NOT HEAD (which would
+# make BASE..HEAD empty) and IS a genuine ancestor of HEAD (not unrelated history). Any failure is
+# fail-closed — a forged base can neither narrow the scan to nothing nor point it at the wrong commits.
+BASE_SHA=$(git rev-parse --verify --quiet "${BASE}^{commit}" 2>/dev/null || true)
+[ -n "$BASE_SHA" ] || refuse "phase base ($BASE_SRC = '$BASE') is not a resolvable commit (fail-closed)"
+[ "$BASE_SHA" != "$HEAD" ] || refuse "phase base ($BASE_SRC) equals HEAD — the scan window would be empty (fail-closed)"
+git merge-base --is-ancestor "$BASE_SHA" "$HEAD" 2>/dev/null \
+  || refuse "phase base ($BASE_SRC = '$BASE') is not an ancestor of HEAD (fail-closed)"
+RANGE="${BASE_SHA}..HEAD"
 [ -f .claude/lib/_secret-scan.sh ] && . .claude/lib/_secret-scan.sh 2>/dev/null || true
 [ -f .claude/lib/_high-stakes.sh ] && . .claude/lib/_high-stakes.sh 2>/dev/null || true
 

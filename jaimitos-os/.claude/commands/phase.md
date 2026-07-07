@@ -40,6 +40,10 @@ silently fall through to another phase. This is for targeted and parallel work (
      the grader diffs the whole phase and the criteria-integrity check still sees any
      weakening). Only when there is no `.phase-base`, or `.phase-ready` names a DIFFERENT
      heading (a genuinely new phase), run `git rev-parse HEAD > .claude/.phase-base`.
+     (Under headless `scripts/autopilot.sh` this write is advisory only: the orchestrator re-derives
+     the phase base in its OWN trusted shell and OVERWRITES this file before the evaluator and
+     `scripts/tick.sh` read it, so a builder can't forge it to narrow the safety scan. In-session
+     `/phase` + `/wrap` still rely on this write.)
    - Write the EXACT heading line to `.claude/.phase-ready`, verbatim, no extra text
      (do this in both cases — it is cheap and idempotent for the same phase).
    - If this phase's `Mode:` line says `supervised`, say so plainly before continuing — you are
