@@ -294,12 +294,15 @@ the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a
   reason is cleared; the enforced `HIGH_STAKES_RE` and the content scanner are unchanged; and
   `doctor.sh` lists every active suppression so one is never hidden. It is an **auditable escape hatch,
   not a bypass.**
-- **The gate cannot exempt itself.** Editing the gate's own control files — `scripts/tick.sh`,
-  `.claude/lib/_high-stakes.sh`, or `.claude/high-stakes-path-allowlist` — inside a phase forces
-  **supervised** review (`tick.sh` exit 3): a phase can't self-exempt or self-narrow its own gate and
-  still auto-tick. Under headless `scripts/autopilot.sh` the gate-control files are additionally
-  **integrity-checked** (byte-compared against the trusted launch checkout) before the gate runs, so a
-  builder that neuters `tick.sh`/`_high-stakes.sh` in its worktree gets no auto-tick and no push.
+- **The gate cannot exempt itself.** Editing the enforced high-stakes config —
+  `.claude/lib/_high-stakes.sh` or `.claude/high-stakes-path-allowlist` — inside a phase forces
+  **supervised** review (`tick.sh` exit 3): a phase can't self-exempt or self-narrow the high-stakes
+  matcher and still auto-tick. `tick.sh` **cannot guard edits to `tick.sh` itself** (a neutered gate would
+  just run its own neutered check). Those are caught one level up: under headless `scripts/autopilot.sh`
+  every gate-control file — **including `scripts/tick.sh`** — is **integrity-checked** (byte-compared
+  against the trusted launch checkout) before the gate runs, so a builder that neuters
+  `tick.sh`/`_high-stakes.sh` in its worktree gets no auto-tick and no push. The manual `/wrap` path has no
+  such byte-integrity check and stays human-supervised (see below).
 - **The scan window is orchestrator-trusted under autopilot.** The secret/high-stakes scan runs over
   `${phase-base}..HEAD`. The builder writes `.claude/.phase-base` from inside its session, so under
   headless `--dangerously-skip-permissions` it is **untrusted** — `scripts/autopilot.sh` derives the
@@ -310,6 +313,12 @@ the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a
   protection we don't enforce — a fully-malicious builder with arbitrary shell access can still tamper
   with its own worktree or exfiltrate; the executor's forbidden-writes rule is advisory (a model can
   ignore it), the real protection is the orchestrator's trusted re-derivation + integrity checks.
+- **The manual `/wrap` path is the weaker, human-supervised path.** `/wrap` (and `/autopilot-parallel`)
+  call `tick.sh` directly and do **not** yet carry headless autopilot's trusted-base override or
+  gate-control byte-integrity check — they trust the session-written `.claude/.phase-base` and the on-disk
+  gate code. Run `/wrap` only from a **clean working tree** (uncommitted changes fall outside the
+  `${phase-base}..HEAD` scan), and use **headless `scripts/autopilot.sh` as the hardened path for
+  unattended operation.**
 
 ---
 

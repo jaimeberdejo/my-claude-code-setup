@@ -37,6 +37,9 @@ for d in GUIDE.md LOOP-ENGINEERING.md toolkit-docs/GUIDE.md toolkit-docs/LOOP-EN
   [ -e "$d" ] && bad "tool-doc $d was copied (should be excluded)" || ok "$d not copied"
 done
 [ -e toolkit-docs ] && bad "toolkit-docs/ dir was copied (should be excluded by directory)" || ok "toolkit-docs/ not copied"
+# M-Ship1: the toolkit's own dev/audit PLANs (PLAN-*.md) must never ship into a target project.
+PLANS_SHIPPED="$(find . -name 'PLAN-*.md' -not -path './.git/*')"
+[ -z "$PLANS_SHIPPED" ] && ok "no toolkit PLAN-*.md dev docs shipped into target" || bad "toolkit PLAN-*.md shipped into target: $(printf '%s' "$PLANS_SHIPPED" | tr '\n' ' ')"
 # SCAFFOLD.md present.
 [ -f SCAFFOLD.md ] && ok "SCAFFOLD.md copied" || bad "SCAFFOLD.md missing"
 # Pre-existing README untouched, and no scaffold content leaked into it.

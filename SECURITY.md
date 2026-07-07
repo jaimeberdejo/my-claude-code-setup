@@ -67,8 +67,10 @@ prompt) only *asks* a model to comply.
   non-empty reason. It is purely subtractive: the enforced `HIGH_STAKES_RE` and the content scanner are
   untouched, a bare/reasonless entry suppresses nothing, and `doctor.sh` lists every active suppression.
   A phase **cannot** self-exempt by adding its own allowlist entry: editing the allowlist — or
-  `_high-stakes.sh`, or `scripts/tick.sh` — inside a phase forces supervised review (`tick.sh` exit 3),
-  regardless of the new contents.
+  `_high-stakes.sh` — inside a phase forces supervised review (`tick.sh` exit 3), regardless of the new
+  contents. `tick.sh` **cannot** guard edits to `tick.sh` itself (a neutered gate would run its own
+  neutered check); those are caught under headless autopilot by the gate-control byte-integrity check
+  (next bullet), not by `tick.sh` exit 3.
 - **Under headless autopilot, the gate's own code and scan window are orchestrator-trusted.**
   `tick.sh` and `_high-stakes.sh` run from the builder's worktree, and the scan runs over
   `${phase-base}..HEAD` where `.claude/.phase-base` is builder-written — both untrusted under
@@ -80,6 +82,14 @@ prompt) only *asks* a model to comply.
   and tested; the executor's forbidden-writes rule is advisory on top of it. It still assumes a
   sandboxed, no-credentials environment — a builder with arbitrary shell access can tamper with its own
   worktree or exfiltrate, and we do not claim otherwise.
+- **The manual `/wrap` path is weaker than headless autopilot — by design.** `/wrap` (and
+  `/autopilot-parallel`) call `tick.sh` directly and do **not** yet have the trusted-base override or the
+  gate-control byte-integrity check that `scripts/autopilot.sh` runs: they trust the session-written
+  `.claude/.phase-base` and the on-disk gate code. Two consequences: (1) run `/wrap` only from a **clean
+  working tree** — `tick.sh` scans `${phase-base}..HEAD`, so an **uncommitted** high-stakes/secret change
+  is outside the window; (2) a forged/narrowed in-session `.phase-base` (a valid later ancestor) can shrink
+  that window. Both are acceptable because `/wrap` is **human-supervised**; for **unattended** operation use
+  **headless `scripts/autopilot.sh`**, which is the hardened path.
 - **Autopilot is for low-stakes, reversible code only.** Worktree isolation and the kill-switch
   reduce blast radius; they do not make irreversible actions safe. Set a hard budget cap as the
   outer backstop.

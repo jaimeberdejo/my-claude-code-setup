@@ -111,9 +111,10 @@ copy_file() {
 }
 
 # 1. Scaffold files (everything under jaimitos-os/, including dotfiles like .gitignore).
-#    EXCLUSIONS (by DIRECTORY, so they can't silently drift):
+#    EXCLUSIONS (by directory or filename pattern, so they can't silently drift):
 #      - toolkit-docs/*  : legacy toolkit docs — never shipped if present in old checkouts
 #      - .github/*       : CI workflow is opt-in (--with-ci)
+#      - PLAN-*.md       : the toolkit's own dev/audit milestone plans — meaningless in a target project
 #      - editor/OS cruft : .DS_Store / *.swp never copied into a target
 while IFS= read -r srcfile; do
   rel="${srcfile#"$SCAFFOLD"/}"
@@ -122,6 +123,8 @@ while IFS= read -r srcfile; do
       continue ;;                                  # toolkit docs — don't pollute the target
     .github/*)
       [ "$WITH_CI" -eq 1 ] || continue ;;          # CI is opt-in
+    PLAN-*.md)
+      continue ;;                                  # toolkit dev/audit plans — never ship into a target
     *.DS_Store|*.swp)
       continue ;;                                  # editor/OS cruft
   esac
