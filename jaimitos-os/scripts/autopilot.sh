@@ -285,7 +285,13 @@ BASE_SIGNATURE=""
 # possibly-forged .phase-base AND the possibly-neutered worktree tick.sh (tick.sh's own C1 check cannot
 # guard tick.sh itself). Any drift → treated exactly like a high-stakes hit (no auto-tick, no push).
 # Works in worktree and --no-worktree (a committed edit still differs from START_REF's committed blob).
-GATE_CONTROL_FILES="scripts/tick.sh .claude/lib/_high-stakes.sh .claude/lib/_secret-scan.sh scripts/test-evidence.sh scripts/record-grade.sh .claude/lib/_test-cmd.sh .claude/high-stakes-path-allowlist"
+# The four STAGED AGENT PROMPTS (.claude/agents/*.md) are part of the headless control surface too: the
+# evaluator prompt IS the grading contract, and a builder that rewrote it (or the researcher/planner/
+# executor prompts) mid-phase could steer its own grade or the next phase's build. Editing an autonomous
+# control prompt should force supervised review, not silently continue — so they are integrity-checked
+# here alongside the scripts. (A legitimate agent-prompt change is a supervised toolkit edit, not an
+# unattended autopilot phase.)
+GATE_CONTROL_FILES="scripts/tick.sh .claude/lib/_high-stakes.sh .claude/lib/_secret-scan.sh scripts/test-evidence.sh scripts/record-grade.sh .claude/lib/_test-cmd.sh .claude/high-stakes-path-allowlist .claude/agents/researcher.md .claude/agents/planner.md .claude/agents/executor.md .claude/agents/evaluator.md"
 gate_control_intact() {
   local p
   for p in $GATE_CONTROL_FILES; do
