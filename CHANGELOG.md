@@ -4,14 +4,14 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [2.3.0] — unreleased
+## [2.3.0] — 2026-07-07
 
 Trust-boundary & maintenance hardening milestone closing the P1/P2 backlog from the v2.2 adversarial
 audit (`AUDIT-JAIMITOS-OS-V2.2.md`) plus the stronger `.phase-base` forgery bypass surfaced in the
 v2.2.1 re-audit. No new features, no guardrail weakening — every fix makes a failure mode fail closed /
 route to manual review / force supervised, and each ships a regression test that fails on pre-fix code
-and passes after. **VERSION is intentionally NOT bumped and no tag exists yet** — the release is its own
-explicit human checkpoint.
+and passes after. Released at the explicit human checkpoint: `VERSION` bumped to `2.3.0` and tagged
+`v2.3.0` locally (push held as a separate checkpoint).
 
 ### Fixed — trust boundary
 - **`.phase-base` forgery / forgeable orchestrator state (the centerpiece).** Under headless
@@ -61,6 +61,17 @@ explicit human checkpoint.
 - Corrected the `test-evidence.sh` retry comment (M8): the any-green vote absorbs a flake for an
   IDEMPOTENT suite, but can mask a real first-attempt failure for a non-idempotent one. `tick.sh` heading
   matching hardened with `grep -e` + awk `ENVIRON` (option/escape-safe on unusual headings).
+
+### Fixed — pre-tag audit cleanup (`AUDIT-JAIMITOS-OS-V2.3.md`)
+- **`install.sh` no longer ships the toolkit's own `PLAN-*.md` dev/audit milestone plans into a target
+  project** (M-Ship1) — they were meaningless inside a user's repo and contradicted install.sh's own
+  header; `install-smoke.sh` now asserts none ship.
+- **Corrected the `scripts/tick.sh` self-edit docs** (M-Docs1): README + `SECURITY.md` had claimed editing
+  `scripts/tick.sh` inside a phase forces `tick.sh` exit 3. It does not — `tick.sh`'s in-gate check covers
+  only `_high-stakes.sh` and the allowlist (a neutered `tick.sh` would run its own neutered check);
+  `tick.sh` self-edits are caught one level up by headless `autopilot.sh`'s gate-control byte-integrity
+  check. The docs now also record the manual `/wrap` path as the weaker, human-supervised path (run from a
+  clean working tree; headless `autopilot.sh` is the hardened path for unattended operation).
 
 ### Known limitations / deferred
 - **Root scratch docs** (`HANDOFF-*`, `REDTEAM-*`, `SESSIONLENS-*`) remain untracked at the repo root.
