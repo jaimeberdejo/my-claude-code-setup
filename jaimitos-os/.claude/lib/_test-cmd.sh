@@ -12,6 +12,21 @@
 #   3. poetry run pytest -q  (poetry.lock present, `poetry` on PATH, and a tests/ dir or test_*.py exists)
 #   4. pytest -q             (pytest on PATH AND a tests/ dir or test_*.py exists)
 #   5. npm test --silent     (package.json has a "test" script; needs jq)
+#   6. go test ./...          (go.mod present AND `go` on PATH)
+#   7. cargo test             (Cargo.toml present AND `cargo` on PATH)
+#   8. make test              (Makefile/makefile with a real `^test:` target AND `make` on PATH)
+#   9. mvn -q test            (pom.xml present AND `mvn` on PATH)
+#  10. gradle test            (build.gradle or build.gradle.kts present AND `gradle` on PATH)
+#
+# Ecosystem detectors (6-10) each require BOTH the manifest file AND the runner on PATH — mirroring
+# how uv/poetry/npm are gated — so resolve_test_cmd never emits a command whose runner is not
+# installed; an unmatched manifest simply falls through to the next check.
+#
+# If NOTHING matches, resolve_test_cmd writes a precise "no known test runner detected — set
+# LEAN_TEST_CMD" message to STDERR (stdout stays clean for command-capturing callers) and returns 1.
+# LEAN_TEST_CMD (env, or .claude/settings.json `.env.LEAN_TEST_CMD`) is REQUIRED — not merely
+# "optional" — for any stack outside this detected set (e.g. Ruby, or a non-standard runner):
+# without it the tick gate records passed:null and can never mark the phase done.
 #
 # Lockfile-managed Python envs (2 and 3) are checked BEFORE the bare-PATH pytest fallback (4):
 # a project pinned to uv/poetry keeps its real dependencies in THAT tool's venv, not
@@ -58,6 +73,28 @@ resolve_test_cmd() {
      && jq -e '.scripts.test' package.json >/dev/null 2>&1; then
     printf '%s' "npm test --silent"; return 0
   fi
+  # Common non-Python/JS ecosystems. Each requires BOTH the manifest AND the runner on PATH
+  # (mirrors uv/poetry/npm gating), so we never emit a command whose runner is not installed.
+  if [ -f go.mod ] && command -v go >/dev/null 2>&1; then
+    printf '%s' "go test ./..."; return 0
+  fi
+  if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+    printf '%s' "cargo test"; return 0
+  fi
+  if command -v make >/dev/null 2>&1 \
+     && { { [ -f Makefile ] && grep -qE '^test:' Makefile; } \
+          || { [ -f makefile ] && grep -qE '^test:' makefile; }; }; then
+    printf '%s' "make test"; return 0
+  fi
+  if [ -f pom.xml ] && command -v mvn >/dev/null 2>&1; then
+    printf '%s' "mvn -q test"; return 0
+  fi
+  if { [ -f build.gradle ] || [ -f build.gradle.kts ]; } && command -v gradle >/dev/null 2>&1; then
+    printf '%s' "gradle test"; return 0
+  fi
+  # Nothing matched. Loud, precise instruction to STDERR (never stdout — command-capturing callers
+  # must stay unaffected) so a non-pytest/npm project cannot silently deadlock the tick gate.
+  printf '%s\n' "resolve_test_cmd: no known test runner detected for this project (checked uv/poetry/pytest, npm, go, cargo, make, mvn, gradle). Set LEAN_TEST_CMD to the exact test command via the environment, or add .env.LEAN_TEST_CMD to .claude/settings.json, so the tick gate can record test evidence." >&2
   return 1
 }
 
