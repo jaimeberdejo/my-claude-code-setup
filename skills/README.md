@@ -28,8 +28,12 @@ scaffold-aware, not fully stack-neutral.
 
 ## Design principles
 - **Report-only where it matters.** The three review skills (ship-check, scope-guard,
-  explain-diff) set `disallowed-tools: Edit, Write, MultiEdit, NotebookEdit` in their
-  frontmatter — so they *cannot* modify code, only report. Fixing is a separate, deliberate step.
+  explain-diff) set `disallowed-tools: Edit, Write, MultiEdit, NotebookEdit` in their frontmatter, so
+  the direct file-editing tools are removed — they produce a verdict, not edits. They keep read-only
+  shell access (to run `git diff`, tests, lint); scope-guard and explain-diff additionally declare an
+  `allowed-tools` surface of read-only git and are instructed to use the shell for inspection only.
+  Treat them as review tools held to a report-only contract, not a hard OS sandbox: don't route a
+  mutation through them. Fixing is a separate, deliberate step.
 - **Portable, with a caveat.** They read commands from your CLAUDE.md/README rather than
   hardcoding a stack, so the same skill works in a Python service and a Next.js app.
   But several (roadmap, and the ownership skills) assume the jaimitos-os `docs/` layout

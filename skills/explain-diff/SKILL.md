@@ -1,6 +1,7 @@
 ---
 name: explain-diff
 description: Explains what a change does and where it might be wrong, as a self-review before a human looks at it. Use when the user asks "what did this change", "review my diff", "what could break here", "walk me through what you did". Focuses on risk, not praise.
+allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(git status *), Bash(git log *), Bash(git show *)
 disallowed-tools: Edit, Write, MultiEdit, NotebookEdit
 ---
 
@@ -29,6 +30,10 @@ it's to surface the things a careful reviewer would catch, so the user catches t
    looking for problems. Don't manufacture concerns, and don't rubber-stamp.
 
 ## Guardrails
+- **Read-only by contract.** The edit tools (Edit/Write/MultiEdit/NotebookEdit) are removed in the
+  frontmatter, and your shell/git access is for INSPECTION ONLY — never modify anything with it:
+  no `sed -i`, `tee`, output redirection (`>`/`>>`), `rm`, or `git add`/`commit`/`checkout`/`restore`.
+  You write a review, not a fix — if something needs changing, point at it and let the user apply it.
 - Be specific: file:line, not "some places". Vague review is useless review.
 - Review the code as written, not the intent as described — they diverge.
 - No score, no grade, no praise padding. Just what changed and what to watch.

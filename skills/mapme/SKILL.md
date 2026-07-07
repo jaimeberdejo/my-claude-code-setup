@@ -33,5 +33,10 @@ Read the graph definition to get it right; don't sketch from memory.
 
 ## Guardrails
 - Regenerate from code every time; never just reformat the existing doc.
+- **Don't silently clobber a hand-authored doc.** If `docs/ARCHITECTURE.md` already exists, diff your
+  regenerated version against it and show the user what materially changed (sections added, removed, or
+  altered) BEFORE you overwrite — then get their OK, or write to `docs/ARCHITECTURE.new.md` for them to
+  compare and swap in. Regenerating from code is right; replacing edits they made without showing them
+  first is not.
 - One page. If it's growing past that, link out to detail rather than inlining it.
 - Flag anything you found that contradicts the previous ARCHITECTURE.md — drift is a signal.

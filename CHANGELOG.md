@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Post-`v2.3.1` work on `master`, not yet cut into a release (recorded here so `master` never silently
+drifts past its tag — the coherence lesson from v2.3.1).
+
+### Changed — skills
+- Review skills **`scope-guard`** and **`explain-diff`** now declare an `allowed-tools` surface of
+  read-only git (`git diff`/`status`/`log`, plus `git show` for explain-diff) and carry an explicit
+  "read-only by contract" guardrail. They keep `disallowed-tools: Edit, Write, MultiEdit, NotebookEdit`
+  (the file-editing tools stay removed) and are instructed to use the shell for inspection only.
+- Corrected the `skills/README.md` "cannot modify code" claim to match reality: the review skills remove
+  the file-editing tools and are held to a report-only contract, but retain read-only shell access (for
+  `git diff`, tests, lint) — a contract, not an OS sandbox. (`allowed-tools` is permission pre-approval,
+  not a hard restriction; `disallowed-tools` is what actually removes a tool.)
+- **`mapme`** now diffs its regenerated `docs/ARCHITECTURE.md` against an existing one and confirms
+  before overwriting, instead of silently clobbering a hand-authored doc.
+
 ## [2.3.1] — 2026-07-07
 
 Release-coherence + follow-up hardening from the post-`v2.3.0` audit. `v2.3.0` was tagged and pushed;

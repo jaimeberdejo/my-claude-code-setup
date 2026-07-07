@@ -1,6 +1,7 @@
 ---
 name: scope-guard
 description: Checks that a change matches its stated task and nothing more. Use before committing or when reviewing what was just built — "did I stay on scope", "check this didn't touch anything it shouldn't", "review before commit". Catches helpful-over-reach: unrelated edits, drive-by refactors, unexpected deletions.
+allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(git status *), Bash(git log *)
 disallowed-tools: Edit, Write, MultiEdit, NotebookEdit
 ---
 
@@ -30,6 +31,10 @@ looked unused. This skill catches that before it lands.
   revert it, split it into its own commit, or keep it (with the user's say-so).
 
 ## Guardrails
+- **Read-only by contract.** The edit tools (Edit/Write/MultiEdit/NotebookEdit) are removed in the
+  frontmatter, and your shell/git access is for INSPECTION ONLY — never modify anything with it:
+  no `sed -i`, `tee`, output redirection (`>`/`>>`), `rm`/`mv`/`cp` over tracked files, or
+  `git add`/`commit`/`checkout`/`restore`/`stash`. You produce a verdict, not edits.
 - Don't revert anything yourself — surface it and let the user decide.
 - "It's an improvement" is not the same as "it's in scope." Note good ideas as
   candidates for a separate, deliberate change.
