@@ -8,6 +8,17 @@
 # No `claude` CLI needed — every test here runs offline against the shell gates.
 # Fail-fast: the first red test aborts with its exit code.
 set -euo pipefail
+
+# M12: this script takes NO arguments. Before the fix, ANY argument (including --help) was ignored and
+# the whole battery ran — a footgun for anyone reaching for `--help`. Show help and reject stray args.
+case "${1:-}" in
+  -h|--help)
+    echo "usage: run-guard-tests.sh   (runs the behavioral guard-test suite offline; takes NO arguments)"
+    exit 0 ;;
+  "") : ;;
+  *) echo "run-guard-tests: unexpected argument '$1' — this script takes no arguments (try --help)." >&2; exit 2 ;;
+esac
+
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Git identity: the tests spin up throwaway repos that need a committer. Set a CI identity

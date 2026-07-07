@@ -45,6 +45,11 @@ while [ $# -gt 0 ]; do
       TOOLKIT="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --yes)     YES=1; shift ;;
+    -h|--help)
+      echo "usage: sync.sh --toolkit <path> [--dry-run] [--yes]"
+      echo "  Pull later jaimitos-os toolkit fixes into an ALREADY-scaffolded project from a local toolkit"
+      echo "  checkout, conservatively (four-tier classifier; mixed always prompts). See header for tiers."
+      exit 0 ;;
     *) echo "sync: unknown argument '$1'" >&2; exit 2 ;;
   esac
 done
@@ -57,6 +62,18 @@ if [ ! -f "$TOOLKIT/scripts/install.sh" ] && ! { [ -d "$TOOLKIT/.claude" ] && [ 
   exit 2
 fi
 TOOLKIT="$(cd "$TOOLKIT" 2>/dev/null && pwd)" || { echo "sync: could not resolve --toolkit path" >&2; exit 2; }
+
+# M7: sync is the UPDATE path for an ALREADY-scaffolded project, not an installer. A project with no
+# .claude/settings.json was never scaffolded (install.sh always writes it), so running sync here would
+# do a broken PSEUDO-install — adding toolkit scripts/hooks while skipping every project-owned file
+# (CLAUDE.md, docs/, and settings.json itself). Refuse and point at install.sh instead of guessing.
+if [ ! -f .claude/settings.json ]; then
+  echo "sync: ⛔ this project isn't scaffolded yet — .claude/settings.json is missing." >&2
+  echo "sync:   sync UPDATES an already-scaffolded project; it is not an installer. Running it here would" >&2
+  echo "sync:   add toolkit scripts/hooks while skipping the project-owned files (CLAUDE.md, docs/," >&2
+  echo "sync:   settings.json). Scaffold first:  bash install.sh .   — then re-run sync to pull updates." >&2
+  exit 2
+fi
 
 # install.sh copies from TWO source roots (install.sh:73-98): the jaimitos-os/ scaffold itself,
 # 1:1 onto the project root (--toolkit points here), AND a separate repo-root skills/ dir — a
@@ -86,7 +103,7 @@ toolkit_files() {
       *.DS_Store|*.swp)       continue ;;
     esac
     printf '%s\n' "$rel"
-  done < <(find "$TOOLKIT" -type f)
+  done < <(find "$TOOLKIT" -type f | LC_ALL=C sort)   # sort → deterministic prompt order across machines/filesystems
 }
 
 # skills_files: enumerates the SKILLS_SRC root, mirroring install.sh's second copy loop
@@ -102,7 +119,7 @@ skills_files() {
   while IFS= read -r srcfile; do
     case "${srcfile#"$SKILLS_SRC"/}" in setup-jaimitos-os/*) continue ;; esac
     printf '%s\n' "${srcfile#"$SKILLS_SRC"/}"
-  done < <(find "$SKILLS_SRC" -mindepth 2 -type f)
+  done < <(find "$SKILLS_SRC" -mindepth 2 -type f | LC_ALL=C sort)   # sort → deterministic order
 }
 
 # classify_tier <rel-path> → overwrite | never | mixed | unknown. Order matters: the specific
@@ -164,6 +181,21 @@ confirm() {
 should_apply() {
   [ "$YES" -eq 1 ] && return 0
   confirm "$1"
+}
+
+# mixed_merge_prompt <rel> <kind>: the mixed-merge confirmation prompt. M5 — it NAMES the exact value
+# preserved and states plainly that ONLY that value is kept; every OTHER local edit to the file
+# (description, tools, prose body) is taken from the toolkit. The old generic "preserving your
+# customized value?" implied the whole file's customizations survived, which they do not.
+mixed_merge_prompt() {
+  local rel="$1" what
+  case "$2" in
+    hs_lib)   what="your HIGH_STAKES_RE= line" ;;
+    agent)    what="your model: frontmatter line (or its absence)" ;;
+    rules_hs) what="your paths: block" ;;
+    *)        what="your one customized value" ;;
+  esac
+  printf "Merge '%s'? Keeps the toolkit's updated version and preserves ONLY %s — any OTHER local edits to this file (description, tools, body) are REPLACED by the toolkit's." "$rel" "$what"
 }
 
 # --- mixed-file value-preserving merge (Phase 2) ------------------------------------------------
@@ -442,7 +474,7 @@ done < <(skills_files)
           if [ "$DRY_RUN" -eq 1 ]; then
             echo "  (dry-run) would merge: $rel"
             UPDATED=$((UPDATED+1))
-          elif confirm "Merge '$rel', preserving your customized value?"; then
+          elif confirm "$(mixed_merge_prompt "$rel" "$kind")"; then
             mkdir -p "$(dirname "$rel")"
             if cp_err="$(cp "$tmpfile" "$rel" 2>&1 >/dev/null)"; then
               is_shipped_script "$rel" && chmod +x "$rel"
@@ -461,6 +493,11 @@ done < <(skills_files)
         rm -f "$tmpfile"
         ;;
       unknown)
+        # M6: an unclassified file (e.g. .claude/settings.json) is never written, but since we only
+        # reach here when it DIFFERS from the toolkit's, SHOW the diff so the drift is visible for a
+        # manual merge decision (informational only — nothing is written).
+        echo "--- diff: $rel (project vs toolkit — informational only, never written) ---"
+        diff "$rel" "$toolkitfile" || true
         echo "  manual review needed (unclassified): $rel"
         MANUAL=$((MANUAL+1))
         ;;

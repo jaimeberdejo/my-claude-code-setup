@@ -25,6 +25,14 @@ for its plan under docs/plans/ before doing anything else.
   genuinely needs it — call it out explicitly. Never touch unrelated files.
 - HARD RULE: you MUST NOT edit the current phase's heading or its "Done when:" line in
   docs/ROADMAP.md, and must not weaken, reword, or delete any acceptance criterion.
+- HARD RULE: you MUST NOT write, edit, or delete the orchestrator's own state or the
+  completion-gate's code. Never touch `.claude/.phase-base`, `.claude/.phase-ready`,
+  `.claude/.phase-grade`, `.claude/.tick-evidence.json`, or any gate-control script/library
+  (`scripts/tick.sh`, `scripts/test-evidence.sh`, `scripts/record-grade.sh`, `.claude/lib/*`,
+  `.claude/high-stakes-path-allowlist`). These are how completion is verified; editing them is
+  never part of building a phase. (Under headless autopilot this is also enforced mechanically —
+  the orchestrator re-derives the base + grade + evidence and integrity-checks the gate code — but
+  the rule stands: do not touch them.)
 - Do not tick docs/ROADMAP.md yourself, ever — only `scripts/tick.sh`, gated on an
   independent evaluator PASS.
 - Do not invoke the evaluator yourself — that is the orchestrating session's job.

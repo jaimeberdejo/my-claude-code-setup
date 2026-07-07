@@ -5,7 +5,11 @@
 # Usage: bash scripts/lint-roadmap.sh [--strict] [path-to-roadmap]
 set -uo pipefail
 STRICT=0; FILE="docs/ROADMAP.md"
-for a in "$@"; do case "$a" in --strict) STRICT=1 ;; *) FILE="$a" ;; esac; done
+for a in "$@"; do case "$a" in
+  -h|--help) echo "usage: lint-roadmap.sh [--strict] [path-to-roadmap]   (every ## Phase must carry a non-empty Done when: line)"; exit 0 ;;
+  --strict) STRICT=1 ;;
+  *) FILE="$a" ;;
+esac; done
 [ -f "$FILE" ] || { echo "lint-roadmap: no $FILE — nothing to lint."; exit 0; }
 
 OUT=$(awk '

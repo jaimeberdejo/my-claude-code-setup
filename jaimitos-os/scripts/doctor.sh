@@ -8,6 +8,38 @@
 # (that needs ./install.sh --force) and never touches the high-stakes fingerprint.
 
 set -uo pipefail
+
+# Answer -h/--help BEFORE anything else (including the subdir check below and the git-root cd) so
+# `doctor.sh --help` always prints usage and exits 0, regardless of where it's run from. (The arg loop
+# further down also handles --help, e.g. after `--fix`.)
+case "${1:-}" in
+  -h|--help) echo "usage: doctor.sh [--fix]   (--fix applies safe, local, idempotent repairs)"; exit 0 ;;
+esac
+
+# H4: the operational scripts (this one included) resolve paths from `git rev-parse --show-toplevel`.
+# If jaimitos-os was installed in a SUBDIRECTORY of a repo, that toplevel is the repo ROOT — not where
+# .claude/ and docs/ actually live — so every check below would false-"missing". Detect the mismatch
+# (this script's own scaffold dir vs the git root) and say so plainly instead of a wall of missing.
+# Compare PHYSICAL paths (pwd -P): git prints the symlink-resolved toplevel (e.g. /private/var/… on
+# macOS) while `cd && pwd` is logical (/var/…) — a raw string compare would false-trip on the symlink
+# and refuse a perfectly-fine git-root install.
+DOCTOR_SCAFFOLD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+DOCTOR_GIT_TOP_RAW="$(git -C "$DOCTOR_SCAFFOLD" rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$DOCTOR_GIT_TOP_RAW" ]; then
+  DOCTOR_GIT_TOP="$(cd "$DOCTOR_GIT_TOP_RAW" && pwd -P)"
+  if [ "$DOCTOR_GIT_TOP" != "$DOCTOR_SCAFFOLD" ]; then
+    echo "jaimitos-os doctor"
+    echo ""
+    echo "  ✗ jaimitos-os is installed in a SUBDIRECTORY, not at the git root:"
+    echo "      scaffold:  $DOCTOR_SCAFFOLD"
+    echo "      git root:  $DOCTOR_GIT_TOP"
+    echo "  The operational scripts resolve paths from the git root, so they look for .claude/ and docs/"
+    echo "  in the wrong place. jaimitos-os assumes ONE repo per project. Reinstall at the git root"
+    echo "  (bash install.sh \"$DOCTOR_GIT_TOP\"), or use a separate repo for this project."
+    exit 1
+  fi
+fi
+
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 1
 
 PROBLEMS=0
@@ -24,6 +56,13 @@ for a in "$@"; do
     *) echo "doctor: unknown argument '$a' (try --fix)" >&2; exit 2 ;;
   esac
 done
+
+# Load-bearing files that MUST exist. A manifest, not a bare glob: a glob of PRESENT files can flag a
+# bad exec-bit or a syntax error, but it can never notice a DELETED file — so deleting tick.sh / sync.sh
+# / _test-cmd.sh would otherwise slip past as "All good" (audit H3). Test suites aren't listed here —
+# run-guard-tests.sh has its own drift guard for those.
+REQUIRED_SCRIPTS="autopilot.sh tick.sh test-evidence.sh record-grade.sh models.sh sync.sh doctor.sh close-milestone.sh next-adr.sh lint-roadmap.sh run-guard-tests.sh"
+REQUIRED_LIBS="_secret-scan _high-stakes _test-cmd"
 
 echo "jaimitos-os doctor"
 [ -f .claude/.jaimitos-os-version ] && echo "jaimitos-os version: $(cat .claude/.jaimitos-os-version)"
@@ -42,7 +81,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ok "inside a git repo" ||
 echo ""
 
 echo "Scaffold files:"
-for f in .claude/settings.json docs/SPEC.md docs/ROADMAP.md docs/STATE.md CLAUDE.md scripts/autopilot.sh scripts/models.sh; do
+for f in .claude/settings.json docs/SPEC.md docs/ROADMAP.md docs/STATE.md CLAUDE.md; do
   [ -f "$f" ] && ok "$f" || bad "missing $f"
 done
 if [ -d docs/plans ]; then ok "docs/plans/ exists"
@@ -53,6 +92,12 @@ elif [ "$FIX" -eq 1 ]; then
   printf '# Failure history\n\n_Resolved evaluator findings, appended by scripts/autopilot.sh on PASS._\n' > docs/FAILURES.md \
     && fixed "created docs/FAILURES.md"
 else warn "docs/FAILURES.md missing (created on the first resolved finding, or run --fix)"; fi
+echo ""
+
+echo "Operational scripts (load-bearing — a missing one silently disables a gate/update/repair path):"
+for s in $REQUIRED_SCRIPTS; do
+  [ -f "scripts/$s" ] && ok "scripts/$s" || bad "missing scripts/$s"
+done
 echo ""
 
 echo "Agents, commands, rules:"
@@ -121,14 +166,17 @@ echo ""
 echo "Shared guard libraries (.claude/lib/):"
 # Sourced by commit-on-stop.sh and autopilot.sh. If absent, the secret-scan and
 # high-stakes gates silently disable, so treat as hard failures.
-for lib in _secret-scan _high-stakes; do
-  [ -f ".claude/lib/$lib.sh" ] && ok ".claude/lib/$lib.sh (shared guard lib)" || bad "missing .claude/lib/$lib.sh (secret/high-stakes gate disabled without it)"
+for lib in $REQUIRED_LIBS; do
+  [ -f ".claude/lib/$lib.sh" ] && ok ".claude/lib/$lib.sh (shared guard lib)" || bad "missing .claude/lib/$lib.sh (secret/high-stakes/test-cmd gate disabled without it)"
 done
 echo ""
 
 echo "settings.json:"
 if [ -f .claude/settings.json ]; then
-  jq empty .claude/settings.json >/dev/null 2>&1 && ok "valid JSON" || bad "settings.json is not valid JSON"
+  # `jq empty` was observed to be a no-op on some bundled jq builds (audit M4). `jq -e 'type'` emits the
+  # top-level type of ANY well-formed JSON (a truthy string → exit 0) and errors on a parse failure
+  # (exit ≥2 → non-zero), so a corrupt settings.json is reliably caught. Matches the -e idiom used below.
+  jq -e 'type' .claude/settings.json >/dev/null 2>&1 && ok "valid JSON" || bad "settings.json is not valid JSON"
   jq -e '.permissions.deny | length > 0' .claude/settings.json >/dev/null 2>&1 \
     && ok "permissions.deny present (secret-read protection)" \
     || warn "no permissions.deny — Claude can read .env/secrets. Add deny rules."
@@ -191,7 +239,13 @@ echo ""
 
 if [ "$PROBLEMS" -ne 0 ]; then
   echo "$PROBLEMS problem(s) found. Fix the ✗ items above before an unattended run."
-  [ "$FIX" -eq 1 ] && echo "(--fix repairs chmod/dirs only — it can't restore missing libs/hooks/scaffold; run ./install.sh --force for those.)"
+  # Remediation hint on EVERY problem run (M11 — not only behind --fix). Missing scaffold/libs/hooks/
+  # scripts are restored by install.sh --force; --fix only repairs chmod/dirs.
+  if [ "$FIX" -eq 1 ]; then
+    echo "(--fix repairs chmod/dirs only — it can't restore missing libs/hooks/scaffold; run ./install.sh --force for those.)"
+  else
+    echo "To restore missing scaffold/libs/hooks/scripts, run ./install.sh --force; for chmod/dirs, re-run with --fix."
+  fi
   exit 1
 elif [ "${UNCONFIGURED:-0}" = 1 ] || [ "${HS_DEFAULT:-0}" = 1 ]; then
   # Installed correctly but not yet customized — do NOT imply it's ready to run unattended.

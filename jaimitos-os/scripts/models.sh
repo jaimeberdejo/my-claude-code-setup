@@ -39,15 +39,26 @@ role_file() {
   esac
 }
 
+# --- frontmatter scoping (mirrors sync.sh's C3 fix): only a `model:` line INSIDE the first
+# ---...--- block is our config; a stray `model:` in the markdown body is never read or written (M3). ---
+has_wellformed_frontmatter() {
+  [ "$(sed -n '1p' "$1" 2>/dev/null)" = "---" ] || return 1
+  [ "$(grep -c '^---$' "$1" 2>/dev/null)" -ge 2 ] || return 1
+}
+fm_model_lines() {
+  awk 'NR==1 && $0=="---"{infm=1; next} infm && $0=="---"{exit} infm && /^model:/{print}' "$1" 2>/dev/null
+}
+
 current_model() {
-  grep -E '^model:' "$1" 2>/dev/null | head -1 | sed -E 's/^model:[[:space:]]*//'
+  fm_model_lines "$1" | head -1 | sed -E 's/^model:[[:space:]]*//'
 }
 
 check_not_duplicated() {
   f="$1"
-  n=$(grep -cE '^model:' "$f" 2>/dev/null || true)
+  [ -f "$f" ] || return 0   # a missing file is reported by set_model/remove_model, not here
+  n=$(fm_model_lines "$f" | grep -c . 2>/dev/null || true)
   if [ "${n:-0}" -gt 1 ]; then
-    echo "models: '$f' has $n 'model:' lines (expected 0 or 1) -- fix it by hand first" >&2
+    echo "models: '$f' has $n frontmatter 'model:' lines (expected 0 or 1) -- fix it by hand first" >&2
     return 1
   fi
   return 0
@@ -74,48 +85,60 @@ set_model() {
     echo "models: role file '$f' not found -- cannot set its model" >&2
     return 1
   fi
-  if grep -qE '^model:' "$f"; then
-    # Escape the value for safe use as sed REPLACEMENT text: unescaped '&' means "the whole
-    # match" and a bare '\' starts a backreference/escape in that position, while '/' collides
-    # with the s/// delimiter. Escaping all three with a leading backslash makes sed treat them
-    # as inert literal characters instead of metacharacters, so the value round-trips verbatim.
-    esc=$(printf '%s' "$v" | sed -e 's/[&/\]/\\&/g')
-    if sed -i.bak -E "s/^model:.*/model: $esc/" "$f"; then
-      rm -f "$f.bak"
-    else
-      rm -f "$f.bak"
-      echo "models: failed to update the model: line in '$f'" >&2
-      return 1
-    fi
+  if ! has_wellformed_frontmatter "$f"; then
+    echo "models: '$f' has no well-formed --- frontmatter block -- refusing to set a model: line" >&2
+    return 1
+  fi
+  # Update the model: line INSIDE the frontmatter if one exists, else insert it just before the
+  # closing ---. Scoped to the ---...--- block so a stray body 'model:' line is never rewritten (M3).
+  # The value is passed via ENVIRON (never awk -v or a sed replacement), so sed metacharacters
+  # (& / \) and a literal \n/\b round-trip byte-for-byte with NO escape processing — the v2.1.0
+  # injection-hardening guarantee, preserved and now applied to both the update and insert paths.
+  if MODELS_VAL="$v" awk '
+    NR==1 && $0=="---" { print; infm=1; next }
+    infm && $0=="---"  { if (!seen) print "model: " ENVIRON["MODELS_VAL"]; print; infm=0; next }
+    infm && /^model:/ && !seen { print "model: " ENVIRON["MODELS_VAL"]; seen=1; next }
+    { print }
+  ' "$f" > "$f.tmp"; then
+    # Preserve the original file's permission bits on the replacement (a plain '>' takes the umask
+    # default otherwise).
+    mode=$(stat -c '%a' "$f" 2>/dev/null || stat -f '%Lp' "$f" 2>/dev/null)
+    [ -n "$mode" ] && chmod "$mode" "$f.tmp" 2>/dev/null
+    mv "$f.tmp" "$f"
   else
-    if [ "$(head -n1 "$f")" != "---" ] || [ "$(grep -c '^---$' "$f")" -lt 2 ]; then
-      echo "models: '$f' has no well-formed --- frontmatter block -- refusing to insert a model: line" >&2
-      return 1
-    fi
-    # Pass the value through ENVIRON rather than awk -v: POSIX mandates backslash-escape
-    # processing on -v assignments, so a literal \n or \b in the value would be turned into a
-    # real newline or backspace byte in the file. ENVIRON values are not escape-processed.
-    if MODELS_VAL="$v" awk '
-      NR==1 { print; next }
-      !done && /^---$/ { print "model: " ENVIRON["MODELS_VAL"]; print; done=1; next }
-      { print }
-    ' "$f" > "$f.tmp"; then
-      # Preserve the original file's permission bits on the replacement (a plain '>' redirect
-      # takes the umask default instead), so this path matches sed -i's behavior above.
-      mode=$(stat -c '%a' "$f" 2>/dev/null || stat -f '%Lp' "$f" 2>/dev/null)
-      [ -n "$mode" ] && chmod "$mode" "$f.tmp" 2>/dev/null
-      mv "$f.tmp" "$f"
-    else
-      rm -f "$f.tmp"
-      echo "models: failed to insert a model: line in '$f'" >&2
-      return 1
-    fi
+    rm -f "$f.tmp"
+    echo "models: failed to set the model: line in '$f'" >&2
+    return 1
   fi
 }
 
 remove_model() {
   f="$1"
-  grep -vE '^model:' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  # H2: give reset the same guards set_model has — a missing file is a LOUD non-zero, with NO stray
+  # .tmp created (the existence check precedes any write), instead of the old silent false-success.
+  if [ ! -f "$f" ]; then
+    echo "models: role file '$f' not found -- cannot reset its model" >&2
+    return 1
+  fi
+  if ! has_wellformed_frontmatter "$f"; then
+    echo "models: '$f' has no well-formed --- frontmatter block -- refusing to modify it" >&2
+    return 1
+  fi
+  # Strip model: lines INSIDE the frontmatter only; a stray body 'model:' is left untouched (M3).
+  if awk '
+    NR==1 && $0=="---" { print; infm=1; next }
+    infm && $0=="---"  { print; infm=0; next }
+    infm && /^model:/  { next }
+    { print }
+  ' "$f" > "$f.tmp"; then
+    mode=$(stat -c '%a' "$f" 2>/dev/null || stat -f '%Lp' "$f" 2>/dev/null)
+    [ -n "$mode" ] && chmod "$mode" "$f.tmp" 2>/dev/null
+    mv "$f.tmp" "$f"
+  else
+    rm -f "$f.tmp"
+    echo "models: failed to remove the model: line from '$f'" >&2
+    return 1
+  fi
 }
 
 is_valid_value() {
@@ -126,6 +149,14 @@ is_valid_value() {
   case "$v" in *'#'*) return 1 ;; esac
   return 0
 }
+
+case "${1:-}" in
+  -h|--help)
+    echo "usage: models.sh                        show current model config for all 4 /phase stages"
+    echo "       models.sh <role>=<model> ...      set one or more (role: research|plan|exec|eval|all)"
+    echo "       models.sh reset                   restore each role's shipped default (eval=sonnet, rest inherit)"
+    exit 0 ;;
+esac
 
 # Fail-safe: refuse to operate on any role file that's already corrupted (more than one
 # model: line), rather than silently picking or overwriting one and masking the corruption.
@@ -141,9 +172,9 @@ fi
 
 # --- reset: restore each role to ITS OWN shipped default ---
 if [ "$#" -eq 1 ] && [ "$1" = "reset" ]; then
-  remove_model "$(role_file research)"
-  remove_model "$(role_file plan)"
-  remove_model "$(role_file exec)"
+  remove_model "$(role_file research)" || exit 1
+  remove_model "$(role_file plan)"     || exit 1
+  remove_model "$(role_file exec)"     || exit 1
   set_model "$(role_file eval)" "sonnet" || exit 1
   echo "Reset to shipped defaults:"
   show_all

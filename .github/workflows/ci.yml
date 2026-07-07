@@ -40,7 +40,12 @@ jobs:
 
       - name: actionlint — both workflow files
         run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          # H7: pin to a tagged release instead of an unpinned `main` curl|bash (supply-chain hole).
+          # download-actionlint.bash verifies the downloaded actionlint binary's OWN checksum against
+          # the release's published sums; pinning the SCRIPT itself to a version tag stops `main`
+          # changing under us. Bump ACTIONLINT_VERSION deliberately (and re-review) — don't track latest.
+          ACTIONLINT_VERSION=1.7.7
+          bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "$ACTIONLINT_VERSION"
           ./actionlint -color .github/workflows/ci.yml jaimitos-os/.github/workflows/jaimitos-os-ci.yml
 
       - name: settings.json is valid JSON

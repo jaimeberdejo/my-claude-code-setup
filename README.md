@@ -57,7 +57,7 @@ jaimitos-claude-setup/
 │   ├── CLAUDE.md                    # lean constitution (edit placeholders per project)   [installed]
 │   ├── SCAFFOLD.md                  # scaffold quick-start (ships as SCAFFOLD.md, never clobbers README) [installed]
 │   ├── docs/                        # SPEC · ROADMAP · STATE · ARCHITECTURE · decisions/ · plans/
-│   ├── scripts/                     # autopilot.sh · tick.sh (the completion gate) · doctor.sh · test-hooks.sh · models.sh
+│   ├── scripts/                     # autopilot.sh · tick.sh (the completion gate) · sync.sh (toolkit updater) · doctor.sh · models.sh
 │   ├── .github/workflows/jaimitos-os-ci.yml   # OPT-IN CI (install.sh --with-ci)
 │   └── .claude/
 │       ├── settings.json            # hooks → events + permissions.deny
@@ -288,6 +288,37 @@ the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a
   aborts the *entire* run), it leaves that one phase local for supervised review and **continues
   integrating the other named phases**, since each was independently asserted by the user as
   non-interfering.
+- **High-stakes path allowlist** (`.claude/high-stakes-path-allowlist`) — a git-tracked, per-line,
+  reason-required escape for **exact-path false positives** in the high-stakes path matcher (e.g. an
+  ADR file whose name merely contains "money"). Purely subtractive: only an exact path with a non-empty
+  reason is cleared; the enforced `HIGH_STAKES_RE` and the content scanner are unchanged; and
+  `doctor.sh` lists every active suppression so one is never hidden. It is an **auditable escape hatch,
+  not a bypass.**
+- **The gate cannot exempt itself.** Editing the enforced high-stakes config —
+  `.claude/lib/_high-stakes.sh` or `.claude/high-stakes-path-allowlist` — inside a phase forces
+  **supervised** review (`tick.sh` exit 3): a phase can't self-exempt or self-narrow the high-stakes
+  matcher and still auto-tick. `tick.sh` **cannot guard edits to `tick.sh` itself** (a neutered gate would
+  just run its own neutered check). Those are caught one level up: under headless `scripts/autopilot.sh`
+  every gate-control file — **including `scripts/tick.sh`** — is **integrity-checked** (byte-compared
+  against the trusted launch checkout) before the gate runs, so a builder that neuters
+  `tick.sh`/`_high-stakes.sh` in its worktree gets no auto-tick and no push. The manual `/wrap` path has no
+  such byte-integrity check and stays human-supervised (see below).
+- **The scan window is orchestrator-trusted under autopilot.** The secret/high-stakes scan runs over
+  `${phase-base}..HEAD`. The builder writes `.claude/.phase-base` from inside its session, so under
+  headless `--dangerously-skip-permissions` it is **untrusted** — `scripts/autopilot.sh` derives the
+  phase base in its OWN trusted shell, overwrites the file before the evaluator, and passes it to
+  `tick.sh` (which strict-ancestor-validates it), so a forged `.phase-base` can't shrink the scan window
+  to hide a commit. `--dangerously-skip-permissions` still removes the interactive permission boundary
+  entirely: run it **only** in a sandboxed container with no production credentials. We don't claim
+  protection we don't enforce — a fully-malicious builder with arbitrary shell access can still tamper
+  with its own worktree or exfiltrate; the executor's forbidden-writes rule is advisory (a model can
+  ignore it), the real protection is the orchestrator's trusted re-derivation + integrity checks.
+- **The manual `/wrap` path is the weaker, human-supervised path.** `/wrap` (and `/autopilot-parallel`)
+  call `tick.sh` directly and do **not** yet carry headless autopilot's trusted-base override or
+  gate-control byte-integrity check — they trust the session-written `.claude/.phase-base` and the on-disk
+  gate code. Run `/wrap` only from a **clean working tree** (uncommitted changes fall outside the
+  `${phase-base}..HEAD` scan), and use **headless `scripts/autopilot.sh` as the hardened path for
+  unattended operation.**
 
 ---
 
@@ -301,6 +332,34 @@ the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a
   workflow and the scaffold's own `jaimitos-os-ci.yml` call, so the two never drift), and the
   **install smoke test** (`.github/scripts/install-smoke.sh`: no tool-doc pollution, no README
   clobber, idempotent, `.gitignore` merge). `jaimitos-os-ci.yml` is opt-in for installed projects.
+
+### Keeping a project up to date — `scripts/sync.sh`
+
+`install.sh` only scaffolds a **brand-new** project (it skips files that already exist). To pull
+**later toolkit fixes** into a project you already scaffolded — without clobbering your customizations —
+run `sync.sh` against a local jaimitos-os checkout:
+
+```bash
+bash scripts/sync.sh --toolkit /path/to/Claude_SETUP/jaimitos-os --dry-run   # preview the whole plan
+bash scripts/sync.sh --toolkit /path/to/Claude_SETUP/jaimitos-os             # apply, confirming each file
+```
+
+- **Local checkout only.** There's no shipped manifest yet — sync diffs against the toolkit path you
+  pass (`--toolkit`), so keep a `git pull`-ed `Claude_SETUP` checkout around and point at its
+  `jaimitos-os/` dir.
+- **Four tiers, fail-safe.** Every toolkit file is classified: **overwrite** (toolkit-owned logic —
+  diffed, confirmed, copied), **never** (project-owned: `docs/`, `CLAUDE.md`, `.gitignore`,
+  `.claude/high-stakes-path-allowlist` — always skipped), **mixed** (a toolkit file with exactly one
+  customized value — the `HIGH_STAKES_RE=` line, an agent's `model:` line, or `high-stakes.md`'s
+  `paths:` block — a narrow value-preserving merge that keeps the toolkit's body and *your* value;
+  **always prompts**, never `--yes`-bypassed), and **unknown** (anything unclassified, e.g.
+  `settings.json` — shown as an informational diff, never written).
+- `--dry-run` writes nothing; `--yes` skips confirmation for the non-mixed tiers only. Nothing is
+  written without a shown diff and an explicit yes; a failed copy is reported, never counted as success.
+- **Risk / scope.** A `mixed` merge preserves **only** that one named value — any *other* local edit to
+  a mixed file (an agent's description/tools/body) is replaced by the toolkit's, so read the shown merge
+  diff. Run sync on a clean working tree so you can `git diff` the result before committing.
+- Sync **refuses on a never-scaffolded project** (no `.claude/settings.json`) — run `install.sh` first.
 
 ## Loop engineering notes
 

@@ -94,7 +94,12 @@ EOF
 # mkproject <name>: fresh throwaway git repo, cd's the CURRENT shell into it (tests run
 # sequentially, each starting a new project — mirrors mkrepo() in test-close-milestone.sh).
 mkproject() {
-  REPO="$WORK/$1"; rm -rf "$REPO"; mkdir -p "$REPO"
+  REPO="$WORK/$1"; rm -rf "$REPO"; mkdir -p "$REPO/.claude"
+  # A minimally-scaffolded project. sync (M7) refuses a project with no .claude/settings.json — every
+  # real project has one (install.sh writes it). This matches the toolkit fixture's settings.json so
+  # it's a no-op (up-to-date) unless a specific test overwrites it. Tests exercising the M7 refusal
+  # path (or a differing settings.json) replace/remove it explicitly.
+  printf '{"hooks":{}}\n' > "$REPO/.claude/settings.json"
   ( cd "$REPO" && git init -q )
   cd "$REPO" || exit 1
 }
@@ -812,6 +817,58 @@ rc=$(runsync --yes)
   && ! grep -qi "manual review needed (unclassified): .claude/high-stakes-path-allowlist" "$WORK/out"; } \
   && pass ".claude/high-stakes-path-allowlist classifies as never tier: skipped (project-owned), byte-identical, not reported as unclassified" \
   || fail ".claude/high-stakes-path-allowlist misclassified or altered (rc=$rc)"
+
+# ============================================================================================
+# Phase 6 (v2.3.0) — sync UX/safety: never-scaffolded refusal (M7), mixed-prompt clarity (M5),
+# informational unknown-tier diff (M6), deterministic sorted enumeration order.
+# ============================================================================================
+
+# 29 — M7: a project with NO .claude/settings.json was never scaffolded → sync REFUSES (nonzero) and
+# points at install.sh, instead of a broken pseudo-install. (Even --dry-run refuses — the plan itself
+# would be misleading.)
+mktoolkit
+mkproject t29
+rm -rf .claude    # un-scaffold: remove the settings.json mkproject planted
+rc=$(runsync --dry-run)
+{ [ "$rc" -ne 0 ] && grep -qi "install.sh" "$WORK/out" && grep -qi "scaffold" "$WORK/out"; } \
+  && pass "M7: never-scaffolded project (no settings.json) → sync refuses and points at install.sh" \
+  || fail "M7: never-scaffolded project not refused (rc=$rc)"
+
+# 30 — M5: the mixed-merge confirm prompt NAMES the exact value preserved and says ONLY it is kept.
+mktoolkit
+mkproject t30
+mkdir -p .claude/lib
+printf '#!/usr/bin/env bash\n# PROJECT_HS_BODY_V1\nHIGH_STAKES_RE=project-m5\n' > .claude/lib/_high-stakes.sh
+printf 'n\n' | bash "$SYNC" --toolkit "$TOOLKIT" >"$WORK/out" 2>&1; rc=$?
+{ [ "$rc" -eq 0 ] && grep -q "HIGH_STAKES_RE=" "$WORK/out" && grep -q "ONLY" "$WORK/out"; } \
+  && pass "M5: mixed-merge prompt names the exact value (HIGH_STAKES_RE=) and says ONLY it is preserved" \
+  || fail "M5: mixed-merge prompt still generic (rc=$rc)"
+
+# 31 — M6: a differing unknown-tier file (settings.json) shows an informational diff (never written),
+# stays byte-identical, and is still reported as manual review.
+mktoolkit
+mkproject t31
+printf '{"hooks":{},"env":{"CUSTOM_M6":"1"}}\n' > .claude/settings.json    # differs from the toolkit's
+cp .claude/settings.json "$WORK/t31-before"
+rc=$(runsync)
+{ [ "$rc" -eq 0 ] \
+  && grep -q "informational only, never written" "$WORK/out" \
+  && grep -q "CUSTOM_M6" "$WORK/out" \
+  && cmp -s .claude/settings.json "$WORK/t31-before" \
+  && grep -qi "manual review needed (unclassified): .claude/settings.json" "$WORK/out"; } \
+  && pass "M6: differing unknown-tier settings.json shows an informational diff, still manual-review, byte-identical" \
+  || fail "M6: unknown-tier drift not shown as an informational diff (rc=$rc)"
+
+# 32 — deterministic sorted enumeration: with LC_ALL=C sort, .github/scripts/z.sh (leading '.') always
+# precedes scripts/a.sh, regardless of the underlying filesystem's raw find order.
+mktoolkit
+mkproject t32
+out=$(bash "$SYNC" --toolkit "$TOOLKIT" --dry-run 2>&1)
+lz=$(printf '%s\n' "$out" | grep -n '\.github/scripts/z\.sh' | head -1 | cut -d: -f1)
+la=$(printf '%s\n' "$out" | grep -n 'scripts/a\.sh' | head -1 | cut -d: -f1)
+{ [ -n "$lz" ] && [ -n "$la" ] && [ "$lz" -lt "$la" ]; } \
+  && pass "deterministic: enumeration is LC_ALL=C sorted (.github/… precedes scripts/…)" \
+  || fail "sync enumeration not in sorted order (lz=$lz la=$la)"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All sync.sh tests passed."; exit 0

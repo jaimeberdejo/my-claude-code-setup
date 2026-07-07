@@ -48,6 +48,12 @@ HS_BLOCKED=0          # set to 1 if a high-stakes phase tripped the gate (never 
 SKIP_PERMISSIONS=0    # --dangerously-skip-permissions opts INTO bypassing all permission checks
 for arg in "$@"; do
   case "$arg" in
+    -h|--help)
+      echo "usage: autopilot.sh [COUNT] [--allow-dirty] [--no-worktree] [--pr] [--dangerously-skip-permissions]"
+      echo "  COUNT: N | N-M | all|max (default 15). Headless loop: builds each roadmap phase in a fresh"
+      echo "  process, grades it with an independent evaluator, and ticks via scripts/tick.sh. See the"
+      echo "  header of this script for the full flag reference and safety notes."
+      exit 0 ;;
     --allow-dirty) ALLOW_DIRTY=1 ; continue ;;
     --worktree)    USE_WORKTREE=1 ; continue ;;            # explicit (already the default)
     --no-worktree) USE_WORKTREE=0 ; continue ;;            # opt out of isolation
@@ -259,6 +265,45 @@ PREV_OPEN_SIGNATURE=""
 SAME_PHASE_FAILS=0
 MAX_SAME_PHASE_FAILS=3
 
+# ---- trusted phase base (set-once-per-new-phase, preserved across NEEDS_WORK retries) ----
+# .claude/.phase-base is UNTRUSTED under headless bypass mode: the builder writes it (phase.md), and a
+# compromised/prompt-injected builder could forge it (e.g. BASE=HEAD) to empty the secret/high-stakes
+# scan window in tick.sh + the evaluator. We instead derive the base HERE, in the orchestrator's
+# trusted shell, at the top of each iteration: capture HEAD when a NEW phase starts and hold it verbatim
+# across retries of the same phase. PHASE_BASE overrides the builder's file (before the evaluator) and
+# is passed to tick.sh via TICK_BASE. BASE_SIGNATURE remembers which phase PHASE_BASE was captured for.
+PHASE_BASE=""
+BASE_SIGNATURE=""
+
+# ---- gate-control integrity (trusted-shell check, independent of the worktree tick.sh) ----
+# The scan window is derived in THIS trusted shell, but tick.sh and the guard libs are still EXECUTED
+# from the worktree — a builder under --dangerously-skip-permissions could neuter the gate itself
+# (rewrite tick.sh to always exit 0, shrink HIGH_STAKES_RE) in its worktree and the gate would run
+# neutered. Before trusting a tick, verify each gate-control file is byte-identical to its version at
+# START_REF (the trusted commit autopilot launched from and branched the worktree off). Comparing to
+# START_REF (not the worktree) catches COMMITTED and UNCOMMITTED edits and is independent of the
+# possibly-forged .phase-base AND the possibly-neutered worktree tick.sh (tick.sh's own C1 check cannot
+# guard tick.sh itself). Any drift → treated exactly like a high-stakes hit (no auto-tick, no push).
+# Works in worktree and --no-worktree (a committed edit still differs from START_REF's committed blob).
+GATE_CONTROL_FILES="scripts/tick.sh .claude/lib/_high-stakes.sh .claude/lib/_secret-scan.sh scripts/test-evidence.sh scripts/record-grade.sh .claude/lib/_test-cmd.sh .claude/high-stakes-path-allowlist"
+gate_control_intact() {
+  local p
+  for p in $GATE_CONTROL_FILES; do
+    if git cat-file -e "${START_REF}:$p" 2>/dev/null; then
+      # Present at launch → must still be present AND byte-identical to the trusted original.
+      if [ ! -e "$p" ] || ! git show "${START_REF}:$p" 2>/dev/null | cmp -s - "$p"; then
+        echo "autopilot: ⛔ gate-control file changed/removed since launch: $p" >&2
+        return 1
+      fi
+    elif [ -e "$p" ]; then
+      # Absent at launch but present now → a newly-introduced gate file is suspicious.
+      echo "autopilot: ⛔ gate-control file introduced since launch: $p" >&2
+      return 1
+    fi
+  done
+  return 0
+}
+
 for i in $(seq 1 "$MAX_ITER"); do
   # Kill-switch: present in the worktree working dir OR the operator's original checkout.
   if [ -f AGENT_STOP ] || [ -f "$ORIG_ROOT/AGENT_STOP" ]; then
@@ -273,6 +318,16 @@ for i in $(seq 1 "$MAX_ITER"); do
   fi
 
   OPEN_SIGNATURE=$(grep -nE "^[[:space:]]*- \[ \] " docs/ROADMAP.md 2>/dev/null | { md5 2>/dev/null || md5sum 2>/dev/null; })
+
+  # Capture the TRUSTED phase base when a NEW phase starts; preserve it across NEEDS_WORK retries.
+  # "New phase" ⇔ the set of open roadmap checkboxes changed since we last set the base (a prior phase
+  # ticked, advancing the scan floor); a retry leaves that set byte-identical, so we keep the same base
+  # (re-capturing every iteration would self-NARROW the window on a retry, the exact bug phase.md's
+  # "set base only on a new phase" rule avoids — but derived here in the trusted shell, not the builder).
+  if [ "$OPEN_SIGNATURE" != "$BASE_SIGNATURE" ]; then
+    PHASE_BASE=$(git rev-parse HEAD 2>/dev/null)
+    BASE_SIGNATURE="$OPEN_SIGNATURE"
+  fi
 
   echo ""; echo "=== iteration $i / $MAX_ITER ==="
 
@@ -296,6 +351,16 @@ for i in $(seq 1 "$MAX_ITER"); do
     echo "autopilot:   production credentials, retry with --dangerously-skip-permissions." | tee -a autopilot.log
     echo "autopilot:   STOPPING (won't grade a phase that was never really attempted)." | tee -a autopilot.log
     break
+  fi
+
+  # Override the builder-written .claude/.phase-base with the TRUSTED base captured above, BEFORE the
+  # evaluator (which reads .phase-base for its phase-diff + criteria-integrity check, evaluator.md:38,48)
+  # and tick.sh (via TICK_BASE below) run. The builder writes this file from inside its bypass-mode
+  # session; under headless autopilot it is UNTRUSTED (a forged BASE=HEAD would empty the scan window
+  # and hide a high-stakes/secret commit). .claude/.phase-base is gitignored, so this write never dirties
+  # the tracked tree or the pre-grade snapshot.
+  if [ -n "$PHASE_BASE" ]; then
+    printf '%s\n' "$PHASE_BASE" > .claude/.phase-base
   fi
 
   # Produce AUTHORITATIVE tick evidence now that the builder has fully exited and HEAD is
@@ -387,7 +452,14 @@ for i in $(seq 1 "$MAX_ITER"); do
       # uses. It reads its inputs from the filesystem and committed history, so nothing needs
       # staging beforehand; we stage + commit the resulting roadmap/STATE change only on success.
       PHASE_HEADING=$(cat .claude/.phase-ready 2>/dev/null || echo "phase")   # tick.sh consumes .phase-ready
-      bash scripts/tick.sh 2>&1 | tee -a autopilot.log
+      # Trusted-shell gate-control integrity check BEFORE running the (worktree) gate: a builder that
+      # neutered tick.sh / _high-stakes.sh in its worktree must never get an auto-tick or auto-push.
+      if ! gate_control_intact; then
+        HS_BLOCKED=1   # treat like a high-stakes hit: no auto-tick, branch stays LOCAL even with --pr
+        echo "autopilot: ⛔ gate-control tampering detected — SUPERVISED review required, NOT auto-ticking; branch stays LOCAL (no push even with --pr)." | tee -a autopilot.log
+        break
+      fi
+      TICK_BASE="$PHASE_BASE" bash scripts/tick.sh 2>&1 | tee -a autopilot.log
       TICK_RC="${PIPESTATUS[0]}"
       case "$TICK_RC" in
         0)

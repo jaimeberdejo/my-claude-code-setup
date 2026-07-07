@@ -4,6 +4,9 @@
 # skill calls this instead of guessing. Refuses (exit 1) if the computed number somehow already
 # exists. Usage: bash scripts/next-adr.sh   ->  e.g. "004"
 set -uo pipefail
+case "${1:-}" in
+  -h|--help) echo "usage: next-adr.sh   (prints the next zero-padded ADR number for docs/decisions/, e.g. 004)"; exit 0 ;;
+esac
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 1
 DIR="docs/decisions"
 mkdir -p "$DIR"

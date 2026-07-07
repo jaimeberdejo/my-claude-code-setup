@@ -12,6 +12,12 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 1
 
+case "${1:-}" in
+  -h|--help)
+    echo "usage: record-grade.sh \"<full evaluator verdict text>\""
+    echo "  Writes .claude/.phase-grade (run_id=HEAD) only if the verdict's last non-empty line is PASS."
+    exit 0 ;;
+esac
 VERDICT="${1:-}"
 [ -n "$VERDICT" ] || { echo "record-grade: pass the evaluator's verdict text as argument 1." >&2; exit 1; }
 

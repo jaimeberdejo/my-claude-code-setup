@@ -11,6 +11,11 @@
 #     --global-skills  also install the skills into ~/.claude/skills (in addition to project)
 #     --with-ci        also copy the CI workflow (.github/workflows/jaimitos-os-ci.yml).
 #                      Off by default — most projects already have their own CI.
+#     --allow-subdir   allow installing into a SUBDIRECTORY of an existing git repo. jaimitos-os
+#                      assumes ONE repo per project — its operational scripts resolve every path from
+#                      `git rev-parse --show-toplevel`, so a subdir install makes autopilot/tick/doctor
+#                      look in the wrong place. Refused by default; pass this only if you accept that
+#                      the scripts will misbehave (or you'll run them from the git root yourself).
 #
 # The repo README documents the toolkit and is NEVER copied into a target. The scaffold's own
 # note ships as SCAFFOLD.md (so it can't become/clobber your README).
@@ -29,11 +34,13 @@ TARGET="."
 FORCE=0
 GLOBAL_SKILLS=0
 WITH_CI=0
+ALLOW_SUBDIR=0
 for arg in "$@"; do
   case "$arg" in
     --force)         FORCE=1 ;;
     --global-skills) GLOBAL_SKILLS=1 ;;
     --with-ci)       WITH_CI=1 ;;
+    --allow-subdir)  ALLOW_SUBDIR=1 ;;
     -*)              echo "install: unknown flag '$arg'" >&2; exit 2 ;;
     *)               TARGET="$arg" ;;
   esac
@@ -43,6 +50,39 @@ done
 [ -d "$SKILLS_SRC" ] || { echo "install: can't find skills/ next to this script ($SKILLS_SRC)" >&2; exit 1; }
 mkdir -p "$TARGET" || { echo "install: can't create target '$TARGET'" >&2; exit 1; }
 TARGET="$(cd "$TARGET" && pwd)" || { echo "install: can't enter target '$TARGET'" >&2; exit 1; }
+
+# H4: jaimitos-os assumes ONE repo per project. Its operational scripts resolve every path from
+# `git rev-parse --show-toplevel`, so installing into a SUBDIRECTORY of an existing git repo makes them
+# read .claude/ and docs/ from the repo root, not this subdir (a wall of false "missing" from doctor,
+# and autopilot/tick operating on the wrong tree). Refuse unless the user explicitly opts in. A target
+# that is NOT yet a git repo (fresh project) resolves no toplevel and is allowed — that's the norm.
+GIT_TOP_RAW="$(git -C "$TARGET" rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$GIT_TOP_RAW" ]; then
+  # Compare PHYSICAL paths: git prints the symlink-resolved toplevel (e.g. /private/var/… on macOS)
+  # while `cd && pwd` for TARGET is logical (/var/…) — a raw string compare would false-trip on the
+  # symlink and refuse a perfectly-fine git-root install.
+  GIT_TOP="$(cd "$GIT_TOP_RAW" && pwd -P)"
+  TARGET_PHYS="$(cd "$TARGET" && pwd -P)"
+  if [ "$GIT_TOP" != "$TARGET_PHYS" ]; then
+    if [ "$ALLOW_SUBDIR" -eq 1 ]; then
+      echo "install: ⚠ installing into a SUBDIRECTORY of a git repo:" >&2
+      echo "install:     target:   $TARGET" >&2
+      echo "install:     git root: $GIT_TOP" >&2
+      echo "install:   The operational scripts resolve paths from the git root, so they will NOT find this" >&2
+      echo "install:   subdir's .claude/ and docs/. You passed --allow-subdir — proceeding; expect the" >&2
+      echo "install:   scripts to misbehave unless you run them differently." >&2
+    else
+      echo "install: ⛔ refusing: target is a SUBDIRECTORY of a git repo, not its root." >&2
+      echo "install:     target:   $TARGET" >&2
+      echo "install:     git root: $GIT_TOP" >&2
+      echo "install:   jaimitos-os assumes ONE repo per project — its scripts resolve every path from the" >&2
+      echo "install:   git root, so a subdir install makes autopilot/tick/doctor look in the wrong place." >&2
+      echo "install:   Install at the git root instead:  bash install.sh \"$GIT_TOP\"" >&2
+      echo "install:   or use a separate repo for this project. To override anyway: --allow-subdir." >&2
+      exit 1
+    fi
+  fi
+fi
 
 VERSION="$(cat "$SRC/VERSION" 2>/dev/null || echo '?')"
 echo "install: jaimitos-os v$VERSION  →  $TARGET  (force=$FORCE)"
@@ -71,9 +111,10 @@ copy_file() {
 }
 
 # 1. Scaffold files (everything under jaimitos-os/, including dotfiles like .gitignore).
-#    EXCLUSIONS (by DIRECTORY, so they can't silently drift):
+#    EXCLUSIONS (by directory or filename pattern, so they can't silently drift):
 #      - toolkit-docs/*  : legacy toolkit docs — never shipped if present in old checkouts
 #      - .github/*       : CI workflow is opt-in (--with-ci)
+#      - PLAN-*.md       : the toolkit's own dev/audit milestone plans — meaningless in a target project
 #      - editor/OS cruft : .DS_Store / *.swp never copied into a target
 while IFS= read -r srcfile; do
   rel="${srcfile#"$SCAFFOLD"/}"
@@ -82,6 +123,8 @@ while IFS= read -r srcfile; do
       continue ;;                                  # toolkit docs — don't pollute the target
     .github/*)
       [ "$WITH_CI" -eq 1 ] || continue ;;          # CI is opt-in
+    PLAN-*.md)
+      continue ;;                                  # toolkit dev/audit plans — never ship into a target
     *.DS_Store|*.swp)
       continue ;;                                  # editor/OS cruft
   esac

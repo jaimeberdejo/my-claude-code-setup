@@ -21,6 +21,11 @@ NAME=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --name) NAME="${2:-}"; shift 2 ;;
+    -h|--help)
+      echo "usage: close-milestone.sh [--name <label>]"
+      echo "  Archive a COMPLETED roadmap and scaffold the next. Refuses while any open item or an"
+      echo "  unresolved NEXT_FINDINGS.md remains — no bypass by design."
+      exit 0 ;;
     *) echo "close-milestone: unknown argument '$1'" >&2; exit 1 ;;
   esac
 done

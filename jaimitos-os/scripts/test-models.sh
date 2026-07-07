@@ -221,5 +221,44 @@ OUT2=$(bash "$MODELS")
 echo "$OUT2" | grep -q "CLAUDE_CODE_SUBAGENT_MODEL" && fail "warns even when the env var is unset" || pass "no warning when the env var is unset"
 
 echo ""
+echo "H2: reset with a MISSING role file → non-zero exit and NO stray .tmp (was a silent false-success)"
+write_fixture
+rm -f .claude/agents/researcher.md
+bash "$MODELS" reset >/dev/null 2>&1 && fail "reset with a missing role file exited 0 (false success)" || pass "reset with a missing role file exits nonzero"
+[ -e .claude/agents/researcher.md.tmp ] && fail "reset left a stray researcher.md.tmp behind" || pass "reset left no stray .tmp behind"
+
+echo ""
+echo "H2: reset on a well-formed tree still restores each role's shipped default"
+write_fixture
+bash "$MODELS" all=opus >/dev/null
+bash "$MODELS" reset >/dev/null
+{ ! grep -qE '^model:' .claude/agents/researcher.md && ! grep -qE '^model:' .claude/agents/planner.md \
+  && ! grep -qE '^model:' .claude/agents/executor.md && grep -q '^model: sonnet$' .claude/agents/evaluator.md; } \
+  && pass "reset restores shipped defaults on a valid tree" || fail "reset did not restore defaults on a valid tree"
+
+echo ""
+echo "M3: a stray 'model:' line in the BODY (outside frontmatter) is never read, updated, or removed"
+write_fixture
+cat > .claude/agents/executor.md <<'EOF'
+---
+name: executor
+description: test fixture
+tools: Read
+model: opus
+---
+body unchanged marker EXECUTOR
+model: body-decoy-not-config
+EOF
+git add -A >/dev/null 2>&1; git commit -q -m m3fixture --allow-empty
+OUT=$(bash "$MODELS")   # capture (never `models | grep -q`: SIGPIPE+pipefail flakes on an early match)
+echo "$OUT" | grep -qE '^exec: *opus$' && pass "M3: current model read from frontmatter, body model: ignored" || fail "M3: body model: read as config (or dup-check refused)"
+bash "$MODELS" exec=sonnet >/dev/null 2>&1
+grep -q '^model: sonnet$' .claude/agents/executor.md && pass "M3: set updated the FRONTMATTER model:" || fail "M3: set did not update the frontmatter model:"
+grep -q '^model: body-decoy-not-config$' .claude/agents/executor.md && pass "M3: body model: line untouched by set" || fail "M3: set rewrote the body model: line"
+bash "$MODELS" reset >/dev/null 2>&1
+grep -q '^model: body-decoy-not-config$' .claude/agents/executor.md && pass "M3: body model: line survives reset" || fail "M3: reset removed the body model: line"
+[ "$(grep -c '^model:' .claude/agents/executor.md)" -eq 1 ] && pass "M3: after reset only the body decoy remains (frontmatter model: removed)" || fail "M3: reset frontmatter-scoping wrong"
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All models.sh tests passed."; exit 0
 else echo "$FAILS models.sh test(s) FAILED."; exit 1; fi

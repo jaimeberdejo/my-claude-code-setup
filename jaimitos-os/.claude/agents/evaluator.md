@@ -39,6 +39,9 @@ Plausibility is not correctness. "It looks right" is not a pass.
    Do NOT use `git diff HEAD~1` — the builder commits after every task, so HEAD~1
    shows only the last task, not the whole phase. If `.claude/.phase-base` is missing,
    fall back to the last clearly-pre-phase commit and say which ref you used.
+   (Under headless `scripts/autopilot.sh` this file is authoritative and trustworthy: the
+   orchestrator OVERWRITES `.claude/.phase-base` with the base it derived in its own shell
+   before you run, so a builder cannot forge it to shrink the diff you review.)
 3. Run the verification commands yourself: the test suite, typecheck, lint.
    Do not assume they pass — run them and read the exit status. If a
    `test-results.json` exists (written by the test-gate hook), treat it as a hint

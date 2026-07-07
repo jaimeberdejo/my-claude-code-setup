@@ -23,7 +23,7 @@ trap cleanup EXIT
 # these, it never executes them, so trivial no-op stubs make the tests hermetic regardless of
 # what's actually installed on the machine running them.
 BIN="$WORK/bin"; mkdir -p "$BIN"
-for tool in uv poetry pytest; do
+for tool in uv poetry pytest go cargo make mvn gradle; do
   printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/$tool"
   chmod +x "$BIN/$tool"
 done
@@ -55,6 +55,18 @@ expect_unresolved() {
   else
     printf "  ✗ %s -> got '%s', expected unresolved\n" "$desc" "$actual"
     return 1
+  fi
+}
+
+# The "nothing matched" path (M2) must: exit non-zero, keep STDOUT empty (command-capturing callers
+# get no noise), AND emit a LEAN_TEST_CMD instruction on STDERR (was a SILENT empty before the fix).
+expect_loud_fallback() {
+  local desc="$1" out rc errf="$WORK/lf.err"
+  out=$(resolve_test_cmd 2>"$errf"); rc=$?
+  if [ "$rc" -ne 0 ] && [ -z "$out" ] && grep -q 'LEAN_TEST_CMD' "$errf"; then
+    printf "  ✓ %s -> nonzero, clean stdout, stderr names LEAN_TEST_CMD\n" "$desc"; return 0
+  else
+    printf "  ✗ %s -> rc=%s stdout='%s' (want nonzero + empty stdout + LEAN_TEST_CMD on stderr)\n" "$desc" "$rc" "$out"; return 1
   fi
 }
 
@@ -236,6 +248,68 @@ echo "falls through unchanged:"
   PATH="$BIN:$PATH"
   export PATH
   expect_cmd "settings.json with no env block" "uv run pytest -q"
+) || FAILS=$((FAILS+1))
+
+echo ""
+echo "M2 — common non-Python/JS ecosystems (were a hard tick-gate deadlock before):"
+(
+  scenario_dir; : > go.mod
+  unset LEAN_TEST_CMD; PATH="$BIN:/usr/bin:/bin"; export PATH
+  expect_cmd "go.mod + go on PATH" "go test ./..."
+) || FAILS=$((FAILS+1))
+(
+  scenario_dir; : > Cargo.toml
+  unset LEAN_TEST_CMD; PATH="$BIN:/usr/bin:/bin"; export PATH
+  expect_cmd "Cargo.toml + cargo on PATH" "cargo test"
+) || FAILS=$((FAILS+1))
+(
+  scenario_dir; printf 'test:\n\techo hi\n' > Makefile
+  unset LEAN_TEST_CMD; PATH="$BIN:/usr/bin:/bin"; export PATH
+  expect_cmd "Makefile with a test: target + make" "make test"
+) || FAILS=$((FAILS+1))
+(
+  scenario_dir; : > pom.xml
+  unset LEAN_TEST_CMD; PATH="$BIN:/usr/bin:/bin"; export PATH
+  expect_cmd "pom.xml + mvn on PATH" "mvn -q test"
+) || FAILS=$((FAILS+1))
+(
+  scenario_dir; : > build.gradle
+  unset LEAN_TEST_CMD; PATH="$BIN:/usr/bin:/bin"; export PATH
+  expect_cmd "build.gradle + gradle on PATH" "gradle test"
+) || FAILS=$((FAILS+1))
+
+echo ""
+echo "A Makefile WITHOUT a real test: target must NOT resolve to make (falls through to loud fallback):"
+(
+  scenario_dir; printf 'build:\n\techo hi\n' > Makefile
+  unset LEAN_TEST_CMD; PATH="$BIN:/usr/bin:/bin"; export PATH
+  expect_loud_fallback "Makefile without a test: target"
+) || FAILS=$((FAILS+1))
+
+echo ""
+echo "Ecosystem manifest present but its runner NOT on PATH -> falls through (never emits a command"
+echo "whose runner is missing):"
+(
+  scenario_dir; : > go.mod
+  unset LEAN_TEST_CMD; PATH="/usr/bin:/bin"; export PATH   # no go stub
+  expect_loud_fallback "go.mod present but go absent from PATH"
+) || FAILS=$((FAILS+1))
+
+echo ""
+echo "Precedence unchanged: LEAN_TEST_CMD still wins over a present go.mod:"
+(
+  scenario_dir; : > go.mod
+  LEAN_TEST_CMD="custom runner"; PATH="$BIN:$PATH"; export LEAN_TEST_CMD PATH
+  expect_cmd "LEAN_TEST_CMD beats go.mod" "custom runner"
+) || FAILS=$((FAILS+1))
+
+echo ""
+echo "Unknown ecosystem / nothing matched -> LOUD precise LEAN_TEST_CMD instruction on stderr, non-zero"
+echo "exit, clean stdout (was a SILENT empty before M2 — the deadlock this fix removes):"
+(
+  scenario_dir
+  unset LEAN_TEST_CMD; PATH="/usr/bin:/bin"; export PATH
+  expect_loud_fallback "empty project, nothing detected"
 ) || FAILS=$((FAILS+1))
 
 echo ""

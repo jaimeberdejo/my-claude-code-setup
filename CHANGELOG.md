@@ -4,6 +4,87 @@ All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-07-07
+
+Trust-boundary & maintenance hardening milestone closing the P1/P2 backlog from the v2.2 adversarial
+audit (`AUDIT-JAIMITOS-OS-V2.2.md`) plus the stronger `.phase-base` forgery bypass surfaced in the
+v2.2.1 re-audit. No new features, no guardrail weakening — every fix makes a failure mode fail closed /
+route to manual review / force supervised, and each ships a regression test that fails on pre-fix code
+and passes after. Released at the explicit human checkpoint: `VERSION` bumped to `2.3.0` and tagged
+`v2.3.0` locally (push held as a separate checkpoint).
+
+### Fixed — trust boundary
+- **`.phase-base` forgery / forgeable orchestrator state (the centerpiece).** Under headless
+  `autopilot.sh` the untrusted builder wrote `.claude/.phase-base` (via `/phase`) and both the evaluator
+  and `tick.sh` read it verbatim with no validation — a forged `BASE=HEAD` emptied the `BASE..HEAD` scan
+  window, hiding a high-stakes/secret commit (and even the C1 gate-config guard) from every gate, then
+  auto-ticked and auto-pushed. `autopilot.sh` now derives the phase base in its OWN trusted shell
+  (set-once-per-phase, preserved across NEEDS_WORK retries), overwrites `.claude/.phase-base` before the
+  evaluator, and passes it to `tick.sh` via `TICK_BASE`; `tick.sh` uses the env base in preference to the
+  file and strict-ancestor-validates either source (real commit, `!= HEAD`, ancestor of HEAD) — a forged
+  base can no longer narrow or misdirect the scan.
+- **Gate-control self-neutering under autopilot.** `tick.sh`/`_high-stakes.sh` run from the builder's
+  worktree, so a builder could rewrite them (even `tick.sh` itself, which the C1 guard cannot cover) and
+  the neutered gate would run. `autopilot.sh` now byte-compares every gate-control file against its
+  version in the trusted launch checkout before running the gate; any drift (committed OR uncommitted)
+  forces supervised review — no auto-tick, no push. `executor.md` also forbids writing the orchestrator's
+  state + gate-control code (advisory, atop the mechanical enforcement).
+- **`models.sh reset` false-success + `.tmp` debris on a missing role file (H2)**, and its detection/
+  update/removal now scoped to the `---`…`---` frontmatter block so a stray body `model:` line is never
+  read or rewritten (M3).
+
+### Fixed — reliability / DX
+- **`doctor.sh` blind spots (H3/M4/M11):** a manifest-based presence check catches a deleted
+  `tick.sh`/`sync.sh`/`_test-cmd.sh` (was "All good"); `jq -e 'type'` catches a corrupt `settings.json`
+  (`jq empty` is a no-op on some bundled jq); the `install.sh --force` remediation hint prints on any
+  problem run. `doctor.sh` and `install.sh` now also detect an off-git-root / monorepo (subdir) install
+  and report/refuse it clearly instead of a wall of false "missing" (H4; `install.sh --allow-subdir`
+  overrides).
+- **Test-ecosystem deadlock (M2):** `_test-cmd.sh` now resolves go/cargo/make (+mvn/gradle), and a
+  genuinely-unknown stack gets a loud "set `LEAN_TEST_CMD`" instruction on stderr instead of a silent
+  empty that deadlocked the tick gate.
+- **`sync.sh` UX/safety (M5/M6/M7):** refuses a never-scaffolded project (run `install.sh` first); the
+  mixed-merge prompt names the exact value preserved and states ONLY it survives; an unknown-tier drift
+  (e.g. `settings.json`) shows an informational diff; enumeration is deterministically sorted.
+- **CLI `--help` (M12):** every operational script has a safe `-h|--help`; `run-guard-tests.sh --help`
+  no longer runs the whole battery.
+- **Install-smoke coverage (M13):** checks the full shipped manifest and runs `doctor.sh` on the
+  installed tree. **CI supply-chain (H7):** the actionlint fetch is pinned to a tagged release instead of
+  an unpinned `main` `curl|bash`.
+
+### Changed — docs
+- README documents `sync.sh` (layout tree + a "Keeping a project up to date" subsection). README
+  Security and `SECURITY.md` document the high-stakes path allowlist (an auditable escape hatch, not a
+  bypass), the gate-control-edits-force-supervised rule, and the orchestrator-trusted `.phase-base` /
+  gate-integrity model under headless `--dangerously-skip-permissions` — honestly stating what it does
+  and does not protect against.
+- Corrected the `test-evidence.sh` retry comment (M8): the any-green vote absorbs a flake for an
+  IDEMPOTENT suite, but can mask a real first-attempt failure for a non-idempotent one. `tick.sh` heading
+  matching hardened with `grep -e` + awk `ENVIRON` (option/escape-safe on unusual headings).
+
+### Fixed — pre-tag audit cleanup (`AUDIT-JAIMITOS-OS-V2.3.md`)
+- **`install.sh` no longer ships the toolkit's own `PLAN-*.md` dev/audit milestone plans into a target
+  project** (M-Ship1) — they were meaningless inside a user's repo and contradicted install.sh's own
+  header; `install-smoke.sh` now asserts none ship.
+- **Corrected the `scripts/tick.sh` self-edit docs** (M-Docs1): README + `SECURITY.md` had claimed editing
+  `scripts/tick.sh` inside a phase forces `tick.sh` exit 3. It does not — `tick.sh`'s in-gate check covers
+  only `_high-stakes.sh` and the allowlist (a neutered `tick.sh` would run its own neutered check);
+  `tick.sh` self-edits are caught one level up by headless `autopilot.sh`'s gate-control byte-integrity
+  check. The docs now also record the manual `/wrap` path as the weaker, human-supervised path (run from a
+  clean working tree; headless `autopilot.sh` is the hardened path for unattended operation).
+
+### Known limitations / deferred
+- **Root scratch docs** (`HANDOFF-*`, `REDTEAM-*`, `SESSIONLENS-*`) remain untracked at the repo root.
+  Relocating or gitignoring them is deferred — they are the maintainer's untracked working notes, so
+  moving them is a call to confirm explicitly, not something this milestone does unprompted.
+- **`test-evidence.sh` was NOT renamed** to `record-evidence.sh`: it has many references (autopilot, the
+  test suites, install-smoke, `doctor.sh`'s manifest, and the guard-runner drift-guard carve-out), so the
+  rename is not "trivially updatable" and is deferred. Its header already states it is a producer, not a
+  test suite.
+- **`v2.0.0` was never tagged**, and the `v0.2.0` tag's `VERSION` content reads an older value — a
+  historical tagging discrepancy recorded here for the record. No git history is rewritten; future
+  releases should tag at each checkpoint.
+
 ## [2.2.1] — 2026-07-07
 
 Surgical patch closing the trust-boundary findings from the v2.2.0 adversarial audit
