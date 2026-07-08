@@ -6,8 +6,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Post-`v2.3.1` work on `master`, not yet cut into a release (recorded here so `master` never silently
-drifts past its tag — the coherence lesson from v2.3.1).
+_Nothing yet._
+
+## [2.4.0] — 2026-07-08
+
+Autopilot child containment + supervised-phase approval — from the SessionLens headless dogfood —
+bundled with the post-`v2.3.1` review-skill follow-ups. Cut from `master`; `VERSION` → `2.4.0`. No
+existing tag is altered (the v2.3.x tags stay immutable — the coherence lesson from v2.3.1).
 
 ### Changed — skills
 - Review skills **`scope-guard`** and **`explain-diff`** now declare an `allowed-tools` surface of
@@ -21,7 +26,7 @@ drifts past its tag — the coherence lesson from v2.3.1).
 - **`mapme`** now diffs its regenerated `docs/ARCHITECTURE.md` against an existing one and confirms
   before overwriting, instead of silently clobbering a hand-authored doc.
 
-### Fixed — headless autopilot child containment (v2.4.0 candidate)
+### Fixed — headless autopilot child containment
 - **`scripts/autopilot.sh` now contains its builder/evaluator children** instead of running them
   foreground with no timeout. A real headless dogfood (the SessionLens round) found a wedged
   `--dangerously-skip-permissions` run spawning ~9–13 concurrent `claude` processes that `AGENT_STOP`
@@ -37,7 +42,7 @@ drifts past its tag — the coherence lesson from v2.3.1).
   and the resolved log path is printed at loop start. `/autopilot-parallel` does **not** inherit this
   containment yet and now carries a caution to prefer `/autopilot` or the headless script.
 
-### Added — supervised phase approval (v2.4.0 candidate)
+### Added — supervised phase approval
 - **`Mode: supervised` phases are no longer un-tickable.** They previously hit `tick.sh` `exit 3`
   unconditionally with no approval path, so a roadmap containing one could never close via
   `close-milestone.sh`. `tick.sh` gains `--supervised-approved [--note "<why>"]`, which records an
