@@ -22,11 +22,17 @@ whatever context you need must be in your prompt).
 1. Read whatever the prompt gave you, plus docs/ROADMAP.md and docs/STATE.md for context.
 2. If the research findings mention existing code, re-read the actual files yourself before
    planning against them — treat findings as a pointer, not a substitute for reading.
-3. Derive the plan filename as a short kebab-case slug of the phase's subject, dropping the
+3. **Non-trivial phase? Design it twice first.** If the phase implies more than ~3 tasks or
+   creates a new module/interface, apply the `design-twice` skill (.claude/skills/design-twice/)
+   before writing the plan: sketch two genuinely different designs, compare trade-offs, choose.
+   Trivial/mechanical phases skip this — ceremony matches stakes.
+4. Derive the plan filename as a short kebab-case slug of the phase's subject, dropping the
    leading "Phase N —" (e.g. `## Phase 3 — Rate limiting` → `docs/plans/rate-limiting.md`).
    Write that file containing, in this order:
    - Research notes (3–6 bullets — copy the researcher's findings verbatim if given any;
      your own brief notes from your own reading if not).
+   - If design-it-twice ran: one line — `Alternative considered: <the losing design, one
+     sentence>` — it feeds the ADR the `adr` skill records after the phase ships.
    - A numbered task list, each independently testable (TDD: failing-test-then-passing-code),
      in build order, with cross-task dependencies called out explicitly.
    - A "Done when:" section reproducing the phase's exact roadmap criteria verbatim — never

@@ -44,6 +44,18 @@ if [ -f docs/ARCHITECTURE.md ]; then
   echo "(run the mapme skill to regenerate the full map)"
 fi
 
+if [ -f docs/GLOSSARY.md ]; then
+  echo ""
+  echo "--- docs/GLOSSARY.md (domain vocabulary) ---"
+  # Same capped-read pattern as STATE.md above: the glossary skill keeps it tight, but nothing
+  # forces that, and this is injected into every session.
+  head -30 docs/GLOSSARY.md
+  g_lines=$(wc -l < docs/GLOSSARY.md 2>/dev/null || echo 0)
+  if [ "${g_lines:-0}" -gt 30 ] 2>/dev/null; then
+    echo "(truncated — GLOSSARY.md is $g_lines lines; keep the most load-bearing terms in the first 30)"
+  fi
+fi
+
 if [ -f docs/ROADMAP.md ]; then
   echo ""
   echo "--- Open roadmap items ---"

@@ -13,7 +13,8 @@ phases that are each verifiable, bounded, and demoable.
 
 1. Read `docs/SPEC.md` (and `docs/STATE.md` if present). If there is no SPEC or no
    **measurable** success criterion in it, STOP and say so — a roadmap without a
-   measurable target produces unverifiable phases. Offer to grill the spec first.
+   measurable target produces unverifiable phases. Offer to stress-test it first with the
+   `grill` skill (then freeze the answers with `to-spec`).
 2. Note the constraints (stack, data sources, compliance, performance budgets) — they
    shape phase boundaries.
 3. **Fill CLAUDE.md from the SPEC, if it's still templated.** Check `CLAUDE.md` for

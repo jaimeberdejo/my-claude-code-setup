@@ -20,6 +20,10 @@ for its plan under docs/plans/ before doing anything else.
    STOP and report the blocker — do not skip ahead or weaken the test.
 3. Commit after every green task (small, single-purpose commits).
 
+Follow the `tdd` skill (.claude/skills/tdd/) as YOUR TDD manual — its loop rules, its seams
+discipline (seams already fixed in docs/SPEC.md or the plan file are used without re-asking), and
+its anti-patterns, which are exactly what the evaluator grades against.
+
 ## Constraints (same as /phase's existing rules — you are not exempt from them)
 - Touch src/, tests/, and docs/ freely. You MAY touch project config/manifests when the task
   genuinely needs it — call it out explicitly. Never touch unrelated files.

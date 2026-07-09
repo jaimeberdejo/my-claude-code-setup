@@ -25,3 +25,9 @@ More edits on a confused foundation just dig deeper. The fix is to step back.
 - Prefer a diagnostic that produces evidence over a change that hopes to work.
 - If the loop has burned several attempts, suggest the user also consider a clean
   context (the old context may be full of misleading dead ends).
+
+## Boundary with `diagnose`
+`unstick` is for the *process* failure — 3+ attempts circling the same assumption. When the
+problem is a concrete bug/regression that needs reproducing and isolating, that's the
+`diagnose` skill (build a tight red/green loop first). They chain naturally: unstick names the
+untested assumption; diagnose builds the loop that tests it.

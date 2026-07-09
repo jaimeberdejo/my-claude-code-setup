@@ -238,6 +238,28 @@ behav_session_findings_cap() (
 )
 if behav_session_findings_cap; then pass "session-start: NEXT_FINDINGS.md output is capped with file pointer"; else fail "session-start findings cap (rc=$?)"; fi
 
+# session-start: docs/GLOSSARY.md is injected capped at 30 lines (same pattern as STATE.md);
+# absent file → no glossary section at all.
+behav_session_glossary() (
+  set -uo pipefail
+  t=$(mktemp -d) || exit 20; trap 'rm -rf "$t"' EXIT
+  mkdir -p "$t/.claude/hooks" "$t/docs"
+  cp "$HROOT/.claude/hooks/session-start.sh" "$t/.claude/hooks/" || exit 22
+  cd "$t" || exit 21
+  git init -q && git config user.email t@t.t && git config user.name t
+  out=$(CLAUDE_PROJECT_DIR="$t" bash .claude/hooks/session-start.sh 2>/dev/null)
+  printf '%s\n' "$out" | grep -q 'GLOSSARY' && exit 1          # no file → no section
+  i=1
+  while [ "$i" -le 40 ]; do printf '**Term%02d** — definition %02d\n' "$i" "$i"; i=$((i+1)); done > docs/GLOSSARY.md
+  out=$(CLAUDE_PROJECT_DIR="$t" bash .claude/hooks/session-start.sh 2>/dev/null)
+  printf '%s\n' "$out" | grep -q 'docs/GLOSSARY.md (domain vocabulary)' || exit 2
+  printf '%s\n' "$out" | grep -q 'Term01' || exit 3            # head included
+  printf '%s\n' "$out" | grep -q 'Term40' && exit 4            # beyond the 30-line cap excluded
+  printf '%s\n' "$out" | grep -q 'truncated — GLOSSARY.md is 40 lines' || exit 5
+  exit 0
+)
+if behav_session_glossary; then pass "session-start: GLOSSARY.md injected capped at 30 lines; absent → no section"; else fail "session-start glossary injection (rc=$?)"; fi
+
 # format-on-edit: reformats a messy .py without changing its meaning (skipped if ruff absent).
 behav_format() (
   set -uo pipefail

@@ -76,9 +76,19 @@ is done by the orchestrator (autopilot.sh) or the human, gated on your PASS.
   actually exist in this codebase or its dependencies.
 - **Mocking the subject under test** — the exact thing the task asked to build
   or fix is itself mocked in the test, so it cannot fail.
+- **Tautological tests** — the assertion recomputes the expected value the same
+  way the code computes it (`expect(add(a,b)).toBe(a+b)`, a hand-derived snapshot
+  built by the same procedure, a constant asserted equal to itself), so it passes
+  by construction and can never disagree with the code. Expected values must come
+  from an independent source of truth.
+- **Implementation-coupled tests** — tests that mock internal collaborators, test
+  private methods, or verify through a side channel (querying the database instead
+  of the public interface); they pass/fail on structure, not behavior, so they can
+  green-light a broken feature after a refactor.
 
 Any of these found in the diff is an automatic NEEDS_WORK — cite the specific
-instance as a failing criterion, not a vague concern.
+instance as a failing criterion, not a vague concern. (The `tdd` skill teaches the
+builder these same anti-patterns — teaching and grading are symmetric.)
 
 ## No-test-suite confirmation (only when there genuinely is none)
 The tick gate (`scripts/tick.sh`) refuses to mark a phase done without GREEN test

@@ -59,7 +59,9 @@ whatever order the builds finished in:
    of N integrations is itself a loop and gets the same checks `/autopilot` gets between phases.
 2. In THIS checkout (not the worktree), attempt: `git merge --no-ff <phase-branch>`.
    - **Conflict:** `git merge --abort`. Do NOT silently punt to raw git, and do NOT auto-resolve.
-     Inspect the conflicting hunks, explain to the user *why* they conflict, and present 1–3
+     Use the `merge-conflicts` skill to understand both sides' intent (it also documents the
+     expected-and-harmless STATE.md conflict case), inspect the conflicting hunks, explain to the
+     user *why* they conflict, and present 1–3
      concrete resolution options. **Stop here and wait for the user's explicit direction** — apply
      exactly what they choose, never a resolution you pick yourself — then redo the merge and
      continue. Do not abort the whole batch over one conflict; phases already integrated keep
