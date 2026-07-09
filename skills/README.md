@@ -100,6 +100,32 @@ scope-guard   →   explain-diff   →   ship-check
 ```
 Run that before any commit and most of what slips through review gets caught first.
 
+## The spec lifecycle (grill → to-spec → roadmap)
+`grill` builds `docs/SPEC.md` live (one question per turn, each closed decision written into its
+real section; vocabulary → the `glossary` skill in place). `to-spec` **closes** it: empties
+`## Open questions`, distills the settled architectural notes into ADRs (`adr` skill), writes the
+confirmed `## Test seams` (the `tdd` skill reads them), and flags a pivot if the success criterion
+changed. `roadmap` then breaks it into phases.
+
+**Three spec states, but only one is stored.** The frontmatter `status:` carries `draft` /
+`grilling` / `ready`, yet **only `grilling` is load-bearing** — it's the one state that isn't
+derivable from content (a paused interview and a draft look alike). `roadmap`'s gate *derives*
+readiness from content (a measurable criterion + an empty Open questions), never trusting a
+`ready` label blindly, so a stale label can't push a bad spec into planning. This is the same
+"don't cache state that can lie" rule the manifest sync (§ Keeping a project up to date) follows.
+
+**Roadmaps and milestones are amended, never regenerated.** Once `docs/ROADMAP.md` exists,
+`roadmap` and `milestone` edit it in place; ticked (`- [x]`) phases are **immutable** and phase
+numbers are **stable IDs** (like tracker issue numbers). The reason is *not* that `tick.sh` diffs
+the roadmap against a stored copy — it doesn't; its "left byte-identical" only means it never
+half-writes on refusal. The real reasons: a between-phases edit of a ticked phase is caught by
+nothing (the evaluator's `phase-base..HEAD` criteria-integrity diff only sees the *active* phase),
+so it silently becomes the new baseline and corrupts the audit trail; rewriting a ticked line can
+regress a `- [x]` back to `- [ ]`; and `docs/STATE.md`'s "last ticked" pointer must keep resolving
+to a heading that still exists verbatim. So `milestone` inserts-and-renumbers only when no ticked
+phase sits below the insertion point, and otherwise appends at the end with
+`Depends on: … Blocks: …`.
+
 ## Ownership
 Three skills — **teach-back**, **mapme**, **quizme** — exist so you actually understand code
 Claude helped build: enough to debug it, extend it, defend it in an interview, and (for regulated

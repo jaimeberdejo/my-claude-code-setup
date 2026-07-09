@@ -9,6 +9,19 @@ The roadmap is the work queue every loop in this stack reads. A good one makes
 autonomy safe; a vague one makes it dangerous. This skill turns docs/SPEC.md into
 phases that are each verifiable, bounded, and demoable.
 
+## Entry gate (before anything else)
+Read the spec's `status:` frontmatter and its content:
+- `status: grilling` → an interview is open. STOP: "The spec is in grilling — run `to-spec` to close it first."
+- Otherwise derive readiness from **content, not the label** (a stored `ready` can lie): proceed
+  only if there's a measurable Success criterion AND `## Open questions` is empty/absent. If not,
+  it's still a draft — offer the `grill` skill. (This is advisory, inside the skill: no hooks, and
+  `tick.sh` is never touched.)
+
+## If docs/ROADMAP.md already exists → amend, don't regenerate
+Never overwrite an existing roadmap wholesale — that would destroy live state. See
+[Amending a roadmap](#amending-a-roadmap-immutability) below, then stop; the write-from-scratch
+flow in the rest of this file is only for a roadmap that doesn't exist yet.
+
 ## Before writing
 
 1. Read `docs/SPEC.md` (and `docs/STATE.md` if present). If there is no SPEC or no
@@ -115,6 +128,24 @@ Mode: loopable | supervised
   scope, not something this skill infers automatically.
 - Update `docs/STATE.md` "Next action" to point at the first phase.
 - Do NOT start building. The roadmap is a plan; building is `/phase` or `/autopilot`.
+
+## Amending a roadmap (immutability)
+When `docs/ROADMAP.md` already exists, edit it in place — the classification is by phase state:
+- **Ticked / completed phases (checked items): immutable.** Do not reword, renumber, delete, or
+  touch their `Done when:`. Reproduce them byte-for-byte.
+- **Not-yet-started phases: freely rewritable** — content, tasks, `Done when:`, order.
+- **New phases: added via the `milestone` skill** (it chooses insert-and-renumber vs append-with-
+  `Depends on:`, so a ticked phase's number never shifts).
+- Finish by summarizing what you amended: which phases you changed, which you left untouched, why.
+
+Why ticked phases are immutable — and it is **not** because `tick.sh` diffs the roadmap against a
+stored copy (it does not; its "left byte-identical" only means it doesn't half-write on refusal).
+The real reasons: (1) nothing mechanical guards a between-phases edit, so a silently reworded
+ticked phase just becomes the new baseline and corrupts the audit trail — the one thing that
+*would* catch it, the evaluator's `git diff phase-base..HEAD -- docs/ROADMAP.md` criteria-integrity
+check, only sees the *active* phase's window; (2) rewriting a ticked line can flip a checked item
+back to unchecked, regressing recorded state; (3) `docs/STATE.md`'s "last ticked" pointer must keep
+resolving to a heading that still exists verbatim. (Fuller writeup: `skills/README.md`.)
 
 ## Guardrails
 - Phases come from the spec, not from imagination — every phase should trace to an

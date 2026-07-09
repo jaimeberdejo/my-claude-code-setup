@@ -35,6 +35,21 @@ docs-centric, never copied verbatim). `VERSION` → `2.5.0`.
   integration case), `design-twice` (two genuinely different designs → ADR with the rejected
   alternative; applied by the planner on non-trivial phases), `glossary` (docs/GLOSSARY.md only;
   injected capped by the session-start hook). 18 skills total, 17 per-project.
+- **A spec lifecycle across `grill` → `to-spec` → `roadmap` → `milestone`** (composition, one new
+  stored bit). `docs/SPEC.md` gains `status:` frontmatter plus `## Open questions` and
+  `## Test seams` sections. `grill` now writes each closed decision straight into its real spec
+  section as it lands (vocabulary → the `glossary` skill in place); `to-spec` closes the spec —
+  empties Open questions, distills the *settled* architectural notes into ADRs at close (via the
+  `adr` skill, so a decision reversed mid-interview never leaves a stale ADR), writes the confirmed
+  seams, and flags a pivot when the success criterion changed vs `git show HEAD:docs/SPEC.md`.
+  `roadmap` gains an entry gate and an **amend-don't-regenerate** mode; `milestone` inserts +
+  renumbers only when no ticked phase sits below, else appends with `Depends on: … Blocks: …`
+  (phase numbers are stable IDs). **Only `grilling` is a stored, load-bearing state** — `roadmap`
+  derives "ready" from content (measurable criterion + empty Open questions), so a stale label
+  can't gate a bad spec into planning. Ticked phases are immutable — and, corrected here, *not*
+  because `tick.sh` byte-compares the roadmap (it stores no prior copy): the real reasons are audit-
+  trail integrity, not regressing a `- [x]`, and keeping STATE.md's "last ticked" pointer resolvable.
+  No new skill; `tick.sh`/hooks/agents untouched.
 - **An executable sandbox for unattended runs**: `sandbox/Dockerfile.autopilot` +
   `sandbox/run-autopilot-sandboxed.sh` — mounts only the repo, passes only `ANTHROPIC_API_KEY`,
   runs the headless loop with `--dangerously-skip-permissions` inside; refuses fail-closed on

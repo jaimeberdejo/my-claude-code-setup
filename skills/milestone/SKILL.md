@@ -13,8 +13,13 @@ exact heading. So this is mechanical and low-risk. Pick the matching mode.
 - If `autopilot.sh` is currently looping, STOP it before editing the roadmap (`touch AGENT_STOP`,
   edit, `rm AGENT_STOP`) — it rewrites `docs/ROADMAP.md` every tick, so live edits are racy.
 - Never weaken or delete existing phases' `Done when:` lines without the user's explicit say-so.
+- **Ticked (`- [x]`) phases are immutable** — never renumber, reword, move, or delete one. Numbers
+  are stable IDs (see Mode A step 2 and the `roadmap` skill's "Amending a roadmap").
 
 ## Mode A — Add phase(s) to the current roadmap
+0. **Is this actually a phase?** Apply CLAUDE.md's ceremony-to-stakes rule first: if you can't
+   write its `Done when:` as one checkable line, it's a *task inside* another phase, not a phase —
+   say so and don't create it. (Tiny/reversible → just prompt; a phase earns its own heading.)
 1. **Check whether this is in-scope or scope creep.** Read `docs/SPEC.md`'s In scope / Non-goals
    against what's being requested. Two cases:
    - **Fits the existing SPEC** (a missed detail of already-described scope) → skip to step 2, no
@@ -28,25 +33,34 @@ exact heading. So this is mechanical and low-risk. Pick the matching mode.
         (including that it started as a mid-project addition, not the original plan). This is
         what makes the scope change visible later instead of an unexplained SPEC diff.
      c. Only then continue to step 2.
-2. Read `docs/ROADMAP.md`. Find the highest existing `## Phase N` number (default 0 if none).
-3. For each new phase the user wants, append (or insert above remaining open phases if they want it
-   to run next — **position = execution order**) a block in the EXACT shape:
+2. Read `docs/ROADMAP.md` — **including which phases are ticked (`- [x]`).** Phase numbers are
+   **stable IDs, not a running order** (like tracker issue numbers: nobody renumbers #47 because a
+   more urgent one arrived). A ticked phase is immutable — never renumber, reword, or move it (see
+   the `roadmap` skill's "Amending a roadmap"; a silently shifted ticked phase corrupts the audit
+   trail and can dangle `docs/STATE.md`'s "last ticked" pointer). Pick the mode:
+   - **Mode A — insert + renumber.** Allowed ONLY if **no ticked phase sits below the insertion
+     point** (nothing stable to disturb). Renumber the not-yet-started phases below it.
+   - **Mode B — append at the end with a dependency.** Use when any ticked phase is below where the
+     work "logically" belongs. The new phase takes the next free number at the end and carries
+     `Depends on: Phase <X>. Blocks: Phase <Y>.` so order is expressed by dependency, not position.
+   If the user explicitly asks for "Phase 2.5": explain that decimal numbering breaks `tick.sh`'s
+   heading parser and offer Mode A or B instead.
+3. Write each new phase in the EXACT shape:
    ```md
-   ## Phase <N+1> — <goal>
+   ## Phase <N> — <goal>
    - [ ] <task>
    - [ ] <task>
    Done when: <observable, machine-checkable condition>
    Mode: <loopable | supervised>
    ```
+   (Mode B phases add a `Depends on: … Blocks: …` line under the heading.)
 4. **Phase shape is defined once, in the `roadmap` skill — don't restate a looser copy here.**
    Apply `roadmap/SKILL.md`'s "Every phase MUST" rules verbatim: a `Done when:` line naming an
    *observable, machine-checkable* condition (a passing command, an eval threshold, a curl that
    returns the right thing) — not just a line that happens to exist. "The pricing feels
    reasonable" is not a `Done when:`; if a requested phase can't be made measurable, say so and
-   propose how to make it checkable, exactly as `roadmap` would, rather than inserting a vague
-   one. Also enforce: each `## ` heading must be **unique and verbatim**. Renumbering on insert
-   is optional (numbers are cosmetic) — uniqueness of heading text is what matters, since
-   `tick.sh` matches against it exactly later.
+   propose how to make it checkable, exactly as `roadmap` would. Each `## ` heading must be
+   **unique and verbatim** — `tick.sh` matches against it exactly later.
 5. Mark `supervised` (not `loopable`) for anything touching auth / money / migrations / deletes /
    external effects, or anything not independently verifiable — same bar as `roadmap`'s
    loopable/supervised rule (all four of: machine-checkable done condition, bounded scope,

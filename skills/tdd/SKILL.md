@@ -20,8 +20,9 @@ doesn't care about internal structure.
 ## Seams — where tests go
 A **seam** is the public boundary you test at. Tests live at seams, never against internals, and
 seams are **pre-agreed, not improvised mid-loop**:
-- If `docs/SPEC.md` (written via `to-spec`) or the phase's plan under `docs/plans/` already names
-  the seams, **use those — do not re-ask.** They were confirmed when the spec/plan was written.
+- If `docs/SPEC.md`'s `## Test seams` section (written via `to-spec`) or the phase's plan under
+  `docs/plans/` already names the seams, **use those — do not re-ask.** They were confirmed when
+  the spec/plan was written.
 - Only when neither names a seam: propose the fewest that cover the work (ideal: one), confirm
   with the user, and note the choice in the plan file so the next cycle doesn't re-litigate it.
 

@@ -1035,16 +1035,20 @@ the 4-line `docs/decisions/` format). You no longer install a separate pack for 
 stage. How they wire into the spine:
 
 ```
-  GRILL      grill skill        ← one question per turn, each with a recommendation,
-     ↓                            until the goal + the ONE measurable metric + non-goals are crisp
-  SPEC       to-spec skill      → docs/SPEC.md  (what/why · MEASURABLE criterion · non-goals ·
-     ↓                            constraints · CONFIRMED test seams)
-  ROADMAP    roadmap skill      → docs/ROADMAP.md  (ordered phases: Done when + Mode;
-     ↓                            fills CLAUDE.md's commands from the SPEC)
+  GRILL      grill skill        ← one question per turn, each with a recommendation; each closed
+     ↓          status: grilling   decision written into its real spec section as it lands
+  SPEC       to-spec skill      → docs/SPEC.md  (empties Open questions · distills ADRs · writes
+     ↓          → status: ready    CONFIRMED Test seams · flags a pivot if the criterion changed)
+  ROADMAP    roadmap skill      → docs/ROADMAP.md  (gate: STOP if status:grilling; else DERIVE
+     │          amend, don't        readiness from content. If a roadmap exists, AMEND it —
+     ↓          regenerate          ticked phases are immutable, numbers are stable IDs)
   BUILD      /phase ×N          planner applies design-twice on non-trivial phases
      │                            ("Alternative considered:" → feeds the adr skill);
-     │                          executor follows the tdd skill (pre-agreed seams from SPEC/plan);
+     │                          executor follows the tdd skill (seams from SPEC's ## Test seams);
      │                          evaluator grades against the SAME tdd anti-pattern list
+     ↓
+  AMEND      milestone          insert+renumber only if nothing ticked below; else append with
+     │                            Depends on: … Blocks: …  (numbers are stable IDs, never shifted)
      ↓
   STUCK?     diagnose           ← a bug to reproduce (build the red-capable loop first)
              unstick            ← 3+ attempts circling one assumption (reset the approach)
@@ -1054,7 +1058,11 @@ stage. How they wire into the spine:
 
 The `roadmap` step is the gate that makes grilling non-optional: a vague spec yields unverifiable
 phases, and unverifiable phases are exactly what the evaluator and the `tick.sh` gate can't pass.
-Grilling *manufactures the verifiable signal the whole autonomy chain runs on*.
+Grilling *manufactures the verifiable signal the whole autonomy chain runs on*. The spec's
+`status:` frontmatter tracks the lifecycle, but **only `grilling` is load-bearing** — `roadmap`
+re-derives "ready" from content (measurable criterion + empty Open questions) rather than trusting
+a stored label that could lie. See `skills/README.md` § "The spec lifecycle" for why ticked phases
+are immutable (it is *not* a `tick.sh` byte-comparison — that gate stores no prior roadmap).
 
 - **New milestone (same spine, one level up):** the `milestone` skill archives the done roadmap →
   `grill` the next batch → `to-spec` → `roadmap`. Whether it's project zero or milestone five,
