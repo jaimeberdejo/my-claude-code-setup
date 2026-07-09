@@ -143,7 +143,9 @@ copy_file() {
 #    EXCLUSIONS (by directory or filename pattern, so they can't silently drift):
 #      - toolkit-docs/*  : legacy toolkit docs — never shipped if present in old checkouts
 #      - .github/*       : CI workflow is opt-in (--with-ci)
-#      - PLAN-*.md       : the toolkit's own dev/audit milestone plans — meaningless in a target project
+#      - PLAN-*.md       : defensive only since v2.5.0 — dev plans now live at repo-root
+#                          docs/dev/plans/ (outside jaimitos-os/), so this should match nothing;
+#                          kept so a stray plan dropped into the scaffold still never ships
 #      - editor/OS cruft : .DS_Store / *.swp never copied into a target
 while IFS= read -r srcfile; do
   rel="${srcfile#"$SCAFFOLD"/}"
