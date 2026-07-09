@@ -348,25 +348,31 @@ the **advisory** layer (`CLAUDE.md`, `rules/`, the evaluator prompt) only asks a
 run `sync.sh` against a local jaimitos-os checkout:
 
 ```bash
-bash scripts/sync.sh --toolkit /path/to/Claude_SETUP/jaimitos-os --dry-run   # preview the whole plan
-bash scripts/sync.sh --toolkit /path/to/Claude_SETUP/jaimitos-os             # apply, confirming each file
+bash scripts/sync.sh --toolkit /path/to/jaimitos-claude-setup/jaimitos-os --dry-run  # preview the plan
+bash scripts/sync.sh --toolkit /path/to/jaimitos-claude-setup/jaimitos-os           # apply (one batch confirm)
 ```
 
-- **Local checkout only.** There's no shipped manifest yet — sync diffs against the toolkit path you
-  pass (`--toolkit`), so keep a `git pull`-ed `Claude_SETUP` checkout around and point at its
-  `jaimitos-os/` dir.
-- **Four tiers, fail-safe.** Every toolkit file is classified: **overwrite** (toolkit-owned logic —
-  diffed, confirmed, copied), **never** (project-owned: `docs/`, `CLAUDE.md`, `.gitignore`,
-  `.claude/high-stakes-path-allowlist` — always skipped), **mixed** (a toolkit file with exactly one
-  customized value — the `HIGH_STAKES_RE=` line, an agent's `model:` line, or `high-stakes.md`'s
-  `paths:` block — a narrow value-preserving merge that keeps the toolkit's body and *your* value;
-  **always prompts**, never `--yes`-bypassed), and **unknown** (anything unclassified, e.g.
-  `settings.json` — shown as an informational diff, never written).
-- `--dry-run` writes nothing; `--yes` skips confirmation for the non-mixed tiers only. Nothing is
-  written without a shown diff and an explicit yes; a failed copy is reported, never counted as success.
-- **Risk / scope.** A `mixed` merge preserves **only** that one named value — any *other* local edit to
-  a mixed file (an agent's description/tools/body) is replaced by the toolkit's, so read the shown merge
-  diff. Run sync on a clean working tree so you can `git diff` the result before committing.
+- **The manifest is the primitive.** `install.sh` writes `.claude/.jaimitos-manifest` — one
+  `sha256  path` line per toolkit-owned file, recording the bytes each file *shipped* with
+  (`sha256sum -c`-compatible). Sync compares local vs manifest vs toolkit and acts per file:
+  - **Unchanged locally** (local hash == manifest) and the toolkit has a newer version →
+    batch-updated after ONE confirmation (`--yes` skips it).
+  - **Modified locally** → **never written.** You get the toolkit↔local diff and a
+    "manual merge required" listing; copy your line over in 20 seconds.
+  - **Project-owned** (`docs/**`, `CLAUDE.md`, `SCAFFOLD.md`, `.gitignore`, the high-stakes
+    allowlist) → never touched, never reported.
+  - **Deleted locally** (in the manifest, absent on disk) → never recreated;
+    `--restore <path>` reinstalls it deliberately. A file in *neither* place is a new toolkit
+    addition and joins the update batch.
+
+> **Upgrading a pre-2.5.0 project (one-time step):** projects scaffolded before the manifest
+> existed must adopt one first — `bash scripts/sync.sh --toolkit <path> --adopt-manifest`
+> records the **current local files** as the baseline (writes only the manifest, no content).
+> Because adoption can't tell a pre-adoption customization from shipped bytes, review the first
+> post-adoption sync with `--dry-run` before confirming the batch.
+
+- `--dry-run` writes nothing (not even the manifest); a failed copy is reported and exits nonzero,
+  never counted as success. Run sync on a clean working tree so you can `git diff` the result.
 - Sync **refuses on a never-scaffolded project** (no `.claude/settings.json`) — run `install.sh` first.
 
 ## Loop engineering notes

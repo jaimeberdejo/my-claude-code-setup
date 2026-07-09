@@ -68,6 +68,12 @@
   `--adopt-manifest` migration note; 4-tier explanation deleted.
 - **Size target:** sync.sh ≤ 250 lines, test-sync.sh ≤ 350 — target, not dogma; any excess is
   justified here BEFORE proceeding.
+- **Size justification (recorded before continuing):** the rewritten sync.sh lands at 292 lines
+  (down from 575, −49%). The ~42-line excess over the target is documentation, not logic: the
+  header block (~38 lines) spells out the five manifest cases, the adoption caveat (pre-adoption
+  customizations look "unchanged" to the baseline), and the exit-code contract — exactly the
+  fail-closed clarity the target says not to sacrifice. The executable body is ~230 lines.
+  Stripping comments to hit 250 would trade away the contract documentation for a number.
 - **Done when:** new suite green, install-smoke verifies the manifest, `grep -rn` of
   "mixed"/"value-preserving"/"unknown tier" clean in scripts and active docs, adoption path
   covered by test.

@@ -250,38 +250,66 @@ re-copying the whole scaffold by hand.
 
 Usage:
 ```bash
-bash scripts/sync.sh --toolkit <path-to-local-jaimitos-os> [--dry-run] [--yes]
+bash scripts/sync.sh --toolkit <path-to-local-jaimitos-os> [--dry-run] [--yes] [--adopt-manifest] [--restore <path>]
 ```
-`--toolkit` (required) points at a local `jaimitos-os/` checkout to diff against and copy from —
-e.g. `~/jaimitos-claude-setup/jaimitos-os`. `--dry-run` previews the full plan and writes nothing.
-`--yes` skips the per-file confirmation prompt, but only for non-mixed tiers (see below) — it never
-auto-applies a mixed merge.
+`--toolkit` (required) points at a local `jaimitos-os/` checkout to copy from — e.g.
+`~/jaimitos-claude-setup/jaimitos-os`. `--dry-run` previews the full plan and writes nothing (not
+even the manifest). `--yes` skips the single batch confirmation.
 
-Every toolkit-shipped file is classified into one of four tiers:
-- **Overwrite-safe** — toolkit-owned logic with no project values inside (hooks, `scripts/*.sh`,
-  commands, skills). Diffed, confirmed, then copied over.
-- **Never-touch** — project-owned content (`docs/`, `CLAUDE.md`, `SCAFFOLD.md`, `.gitignore`).
-  Always skipped; sync never writes these.
-- **Known-mixed** — a toolkit-owned file with exactly one project-customized value inside it:
-  `.claude/lib/_high-stakes.sh`'s `HIGH_STAKES_RE=` line, an agent's `model:` frontmatter line, or
-  `.claude/rules/high-stakes.md`'s `paths:` block. Sync merges the toolkit's updated body with
-  *your* value preserved — always prompts for confirmation, regardless of `--yes`.
-- **Unknown/malformed** — anything unclassified (e.g. `.claude/settings.json`), or a known-mixed
-  file whose shape doesn't match what sync expects. Always left for manual review; never guessed
-  at, never clobbered.
+#### Sync & the manifest
 
-Safety posture: nothing is ever written without first showing a diff (or, for a mixed merge, a
-diff of the proposed merge result); `--dry-run` lets you preview the whole plan risk-free;
-`--yes` only speeds up the non-mixed tiers, never a mixed merge; and a file sync can't confidently
-classify is always routed to manual review rather than guessed at. `settings.json` is intentionally
-report-only (manual merge) — sync never writes it.
+`install.sh` writes `.claude/.jaimitos-manifest`: one `<sha256>  <path>` line per toolkit-owned
+file, recording the bytes each file **shipped** with. The format is `sha256sum -c`-compatible, so
+`sha256sum -c .claude/.jaimitos-manifest` tells you at any time which shipped files you've since
+modified. With that primitive, sync no longer guesses — it *knows* whether you touched a file:
 
-**Current limitation:** sync detects drift by diffing against a LOCAL toolkit checkout you point
-`--toolkit` at — there's no shipped manifest of toolkit versions yet, so you need a clone of
-`jaimitos-claude-setup` on disk to sync from. `.github/workflows/*` is never synced (excluded from
-enumeration); only `.github/scripts/*.sh` is synced, and only into a project that already has a
-`.github/` dir (i.e. already opted into CI via a prior `install.sh --with-ci`) — sync won't
-silently add CI to a project that never asked for it.
+| Case | Condition | Action |
+|---|---|---|
+| up to date | local == toolkit | nothing (a stale manifest entry is silently repaired) |
+| **unchanged** | in manifest, local sha == manifest, toolkit differs | batch update — ONE confirmation for the whole lot (`--yes` skips); manifest entry refreshed |
+| **modified** | in manifest, local sha != manifest | **never written** — toolkit↔local diff shown, listed as "manual merge required" |
+| **project-owned** | `docs/**`, `CLAUDE.md`, `SCAFFOLD.md`, `.gitignore`, `.claude/high-stakes-path-allowlist` | never touched, never reported |
+| **deleted locally** | in manifest, absent on disk | never recreated; listed with the `--restore <path>` hint |
+| **new toolkit file** | in neither manifest nor project | joins the update batch; manifest entry added |
+
+Example output for a mixed run:
+```
+toolkit updates/additions (unchanged locally or new — one confirmation for the lot):
+  update: scripts/doctor.sh
+  add:    .claude/skills/diagnose/SKILL.md
+Apply these 2 update(s)/add(s) from the toolkit? [y/N]
+--- manual merge required: .claude/lib/_high-stakes.sh (modified locally — sync never overwrites it) ---
+2c2
+< HIGH_STAKES_RE='your-custom-regex'
+---
+> HIGH_STAKES_RE='new-shipped-default'
+  deleted locally — skipped (rerun with --restore 'scripts/lint-roadmap.sh' to reinstall): scripts/lint-roadmap.sh
+```
+There is no value-preserving merge machinery anymore: a modified file is *yours*; you see the diff
+and carry your line (a `HIGH_STAKES_RE`, an agent's `model:`) over by hand — 20 seconds, zero
+guessing, nothing clobbered.
+
+#### Upgrading from pre-2.5.0 (adopt the manifest once)
+
+A project scaffolded before v2.5.0 has no manifest, and sync refuses to guess. One-time step:
+
+```bash
+bash scripts/sync.sh --toolkit <path> --adopt-manifest   # record the CURRENT local files as baseline
+bash scripts/sync.sh --toolkit <path> --dry-run          # review the first plan carefully (see caveat)
+bash scripts/sync.sh --toolkit <path>                    # apply
+```
+
+`--adopt-manifest` writes only the manifest (hashes of your **current** toolkit-owned files) and
+never modifies content — explicit and auditable. Caveat: adoption cannot distinguish a
+pre-adoption customization from shipped bytes, so the **first** sync after adopting may list files
+you customized long ago in the update batch — that's why the `--dry-run` review matters. It
+refuses to re-baseline if a manifest already exists.
+
+Other properties: a failed copy is reported and exits nonzero (never counted as success; the
+version stamp is not bumped); shipped scripts get their exec bit restored on update;
+`.github/workflows/*` is never synced, and `.github/scripts/*.sh` is only *added* to a project
+that already opted into CI (`install.sh --with-ci`) — updates to an existing file are unaffected.
+Run sync on a clean working tree so you can `git diff` the result before committing.
 
 ---
 

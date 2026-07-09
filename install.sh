@@ -100,6 +100,22 @@ VERSION="$(cat "$SRC/VERSION" 2>/dev/null || echo '?')"
 echo "install: jaimitos-os v$VERSION  →  $TARGET  (force=$FORCE)"
 
 COPIED=0; SKIPPED=0; FAILED=0; SETTINGS_KEPT=0
+WRITTEN_LIST=""   # newline-separated rel paths actually written this pass (feeds the manifest)
+
+# Portable sha256 (sha256sum on Linux, shasum -a 256 on macOS).
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
+
+# Project-owned content: never listed in the sync manifest (sync never manages these files).
+# Keep this case pattern identical to sync.sh's project_owned().
+project_owned() {
+  case "$1" in
+    docs/*|CLAUDE.md|SCAFFOLD.md|.gitignore|.claude/high-stakes-path-allowlist) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # Copy one file, honoring --force and creating parent dirs. Skips (and reports) if it
 # exists and --force is off. A failed copy is reported and counted — never silently
@@ -117,6 +133,7 @@ copy_file() {
   mkdir -p "$(dirname "$dest")"
   if cp "$srcfile" "$dest"; then
     COPIED=$((COPIED+1))
+    WRITTEN_LIST="${WRITTEN_LIST}${rel}"$'\n'
   else
     echo "  ✗ FAILED to copy: $rel" >&2; FAILED=$((FAILED+1))
   fi
@@ -192,6 +209,30 @@ fi
 
 # 3c. Stamp the installed version so `doctor.sh` can report what's installed.
 mkdir -p "$TARGET/.claude" && printf '%s\n' "$VERSION" > "$TARGET/.claude/.jaimitos-os-version" 2>/dev/null || true
+
+# 3c-bis. Write/refresh the checksum manifest (.claude/.jaimitos-manifest): one
+# `<sha256>  <rel-path>` line (sha256sum -c compatible) per toolkit-owned file ACTUALLY WRITTEN
+# this pass, hashed as shipped. scripts/sync.sh reads it to tell a local customization from a
+# stale shipped file. Merge semantics: entries for files skipped this pass are left as they were;
+# project-owned files (docs/**, CLAUDE.md, SCAFFOLD.md, .gitignore, the high-stakes allowlist)
+# are never listed — sync never manages them.
+if [ -n "$WRITTEN_LIST" ]; then
+  MANIFEST="$TARGET/.claude/.jaimitos-manifest"
+  MF_TMP="$(mktemp 2>/dev/null || echo "$MANIFEST.tmp.$$")"
+  {
+    if [ -f "$MANIFEST" ]; then
+      printf '%s' "$WRITTEN_LIST" > "$MF_TMP.drop"
+      awk 'NR==FNR { drop[$0]=1; next } !(substr($0, 67) in drop)' "$MF_TMP.drop" "$MANIFEST"
+    fi
+    while IFS= read -r rel; do
+      [ -n "$rel" ] || continue
+      project_owned "$rel" && continue
+      [ -f "$TARGET/$rel" ] && printf '%s  %s\n' "$(sha256_of "$TARGET/$rel")" "$rel"
+    done <<< "$WRITTEN_LIST"
+  } | LC_ALL=C sort > "$MF_TMP"
+  mv "$MF_TMP" "$MANIFEST"
+  rm -f "$MF_TMP.drop" 2>/dev/null || true
+fi
 
 # 3d. Fingerprint the shipped HIGH_STAKES_RE so doctor.sh can warn when the ENFORCED gate
 # was never pointed at the project's real paths (editing only the advisory rule is the

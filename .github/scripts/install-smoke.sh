@@ -73,6 +73,18 @@ done
 [ -e .claude/skills/setup-jaimitos-os ] && bad "setup-jaimitos-os copied per-project (should be --global-skills only)" || ok "setup-jaimitos-os not copied per-project"
 # Installed version is stamped for doctor.sh.
 [ -f .claude/.jaimitos-os-version ] && ok "version stamp written (.claude/.jaimitos-os-version)" || bad "version stamp missing"
+# Sync manifest: written on install, sha256sum -c-verifiable, and toolkit-owned only (no
+# project-owned entries — sync never manages those files).
+MANIFEST=.claude/.jaimitos-manifest
+if [ -f "$MANIFEST" ]; then
+  ok "sync manifest written ($MANIFEST)"
+  if command -v sha256sum >/dev/null 2>&1; then MF_CHECK="sha256sum -c --quiet"; else MF_CHECK="shasum -a 256 -c"; fi
+  $MF_CHECK "$MANIFEST" >/dev/null 2>&1 && ok "manifest verifies (sha256sum -c) on a clean install" || bad "manifest does NOT verify with sha256sum -c"
+  { ! grep -qF "  CLAUDE.md" "$MANIFEST" && ! grep -q "  docs/" "$MANIFEST" && ! grep -qF "  SCAFFOLD.md" "$MANIFEST"; } \
+    && ok "manifest lists toolkit-owned files only" || bad "manifest lists project-owned files"
+else
+  bad "sync manifest missing ($MANIFEST)"
+fi
 # .gitignore merged, pre-existing rule preserved.
 grep -q "jaimitos-os control/secret ignores" .gitignore && ok ".gitignore merge block added" || bad ".gitignore not merged"
 grep -qx "node_modules/" .gitignore && ok "pre-existing .gitignore rule preserved" || bad "pre-existing .gitignore rule lost"
