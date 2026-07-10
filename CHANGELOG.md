@@ -6,6 +6,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [2.7.0] — 2026-07-10
+
 ### Added
 - **dbt test runner in the shared resolver.** `dbt_project.yml` + `dbt` on `PATH` → `dbt build`
   (models **and** their tests, in dependency order — `dbt test` alone would grade a warehouse the
