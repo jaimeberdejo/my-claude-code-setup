@@ -8,6 +8,12 @@
 # garbled verdict can never become a tick. If the verdict text contains NO_TESTS_OK, records it
 # so tick.sh may accept a phase that legitimately has no test suite.
 #
+# Also refuses on a DIRTY tracked tree (audit G12): run_id=HEAD is only an honest description of
+# what was graded if every tracked file is committed. Headless already guarantees this — autopilot.sh
+# calls us only after eval_restore has proven the tree matches its pre-grade snapshot — but the
+# manual /wrap path had no such check, so an evaluator that wrote to the live checkout could have its
+# contaminated grade recorded against a HEAD that contains none of it.
+#
 # Usage: bash scripts/record-grade.sh "<full evaluator verdict text>"
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 1
@@ -25,6 +31,21 @@ VERDICT="${1:-}"
 LAST=$(printf '%s\n' "$VERDICT" | grep -vE '^[[:space:]]*$' | tail -1)
 if [ "$LAST" != "PASS" ]; then
   echo "record-grade: evaluator verdict is not PASS (last line: '$LAST') — no grade recorded." >&2
+  exit 1
+fi
+
+# Fail-closed on a dirty tracked tree. Untracked files are deliberately NOT considered: autopilot.log,
+# NEXT_FINDINGS.md and the gitignored evidence files are untracked by design and say nothing about
+# whether HEAD describes the graded code. This is the same window eval_restore asserts before it
+# returns 0, so the headless path (which runs eval_restore first) reaches here already clean.
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "record-grade: not a git repo — a grade must bind to a commit (fail-closed, nothing recorded)." >&2; exit 1; }
+DIRTY=$(git status --porcelain --untracked-files=no 2>/dev/null)
+if [ -n "$DIRTY" ]; then
+  echo "record-grade: the tracked tree is DIRTY — refusing to record a grade that HEAD does not describe." >&2
+  echo "  A grade must describe a clean, committed tree. If the evaluator wrote these files the grade is" >&2
+  echo "  untrustworthy: discard them and re-grade. Uncommitted tracked changes:" >&2
+  printf '%s\n' "$DIRTY" | sed 's/^/    /' >&2
   exit 1
 fi
 

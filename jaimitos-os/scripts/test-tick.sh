@@ -415,6 +415,29 @@ PASS" ) >/dev/null 2>&1
 grep -q "no_tests_ok=0" "$REPO/.claude/.phase-grade" 2>/dev/null \
   && pass "record-grade: mid-sentence NO_TESTS_OK ignored (leading-token only)" || fail "record-grade substring bypass NOT closed"
 
+# g6 (audit G12) — the manual /wrap path must refuse a grade when the grader dirtied the tracked tree.
+# run_id=HEAD only honestly describes what was graded if every tracked file is committed; a PASS
+# recorded over an uncommitted edit binds tick.sh's run_id==HEAD check to a tree no commit contains.
+# Simulate the evaluator writing to a TRACKED file mid-grade, then recording a PASS.
+mkevrepo g6
+printf 'grader wrote this during the grade\n' >> "$REPO/scripts/record-grade.sh"
+( cd "$REPO" && bash scripts/record-grade.sh "all criteria met
+PASS" ) > "$WORK/g6.out" 2>&1; grc=$?
+{ [ "$grc" = 1 ] && [ ! -f "$REPO/.claude/.phase-grade" ] && grep -q "DIRTY" "$WORK/g6.out"; } \
+  && pass "record-grade: dirty tracked tree → refuses a PASS, writes no grade (G12)" \
+  || fail "record-grade recorded a grade over a dirty tree (rc=$grc)"
+
+# g7 — UNTRACKED files must NOT trip g6's check: autopilot.log, NEXT_FINDINGS.md and the gitignored
+# evidence files are untracked by design and say nothing about whether HEAD describes the graded code.
+mkevrepo g7
+printf 'noise\n' > "$REPO/autopilot.log"
+printf 'findings\n' > "$REPO/NEXT_FINDINGS.md"
+( cd "$REPO" && bash scripts/record-grade.sh "all criteria met
+PASS" ) >/dev/null 2>&1; grc=$?
+{ [ "$grc" = 0 ] && grep -q "verdict=PASS" "$REPO/.claude/.phase-grade" 2>/dev/null; } \
+  && pass "record-grade: untracked files alone do not block a grade (tracked-tree check only)" \
+  || fail "record-grade wrongly refused over untracked files (rc=$grc)"
+
 # 15 — a RESOLVABLE but NON-ANCESTOR .phase-base (divergent branch) → fail-closed refuse.
 # Guards tick.sh's `git merge-base --is-ancestor` check. Case 13 covers an UNRESOLVABLE sha (caught by
 # rev-parse --verify) and 14c covers ==HEAD (caught by the !=HEAD guard); NEITHER exercises a real commit
