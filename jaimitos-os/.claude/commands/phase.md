@@ -33,17 +33,20 @@ of roadmap order; bare `/phase` (no argument) is unchanged.
    heading (so the orchestrator knows which items to tick on PASS). Create .claude/
    if needed, then:
    - Determine THIS phase's exact roadmap heading line (e.g. `## Phase 2 — Eval harness`).
-   - **Phase base — set it ONLY when starting a NEW phase, preserve it on a retry.**
-     If `.claude/.phase-base` already exists AND `.claude/.phase-ready` contains this
-     exact same heading, you are RE-RUNNING the same phase after a NEEDS_WORK — leave
-     `.claude/.phase-base` untouched (it must keep pointing at the phase's true start, so
-     the grader diffs the whole phase and the criteria-integrity check still sees any
-     weakening). Only when there is no `.phase-base`, or `.phase-ready` names a DIFFERENT
-     heading (a genuinely new phase), run `git rev-parse HEAD > .claude/.phase-base`.
-     (Under headless `scripts/autopilot.sh` this write is advisory only: the orchestrator re-derives
-     the phase base in its OWN trusted shell and OVERWRITES this file before the evaluator and
-     `scripts/tick.sh` read it, so a builder can't forge it to narrow the safety scan. In-session
-     `/phase` + `/wrap` still rely on this write.)
+   - **Phase base — anchor it ONLY when starting a NEW phase, preserve it on a retry.**
+     When starting a genuinely NEW phase (no anchor yet, or `.phase-ready` names a DIFFERENT
+     heading), run **`bash scripts/start-phase.sh "<this exact phase heading>"`**. That requires a
+     clean tree, records the phase start in the TRACKED, tamper-evident `.claude/.phase-anchor`
+     (committed as `chore(phase-start): <heading>`), and prints the exact `BASE..HEAD` range the gate
+     will judge — so advancing the floor later is a VISIBLE commit, not the silent gitignored-file
+     rewrite the old `.claude/.phase-base` allowed (finding H1). On a RE-RUN of the same phase after a
+     NEEDS_WORK, `start-phase.sh` is idempotent — it detects the existing anchor and does NOT stack a
+     second one, so the floor keeps pointing at the phase's true start.
+     (Under headless `scripts/autopilot.sh` none of this applies: the orchestrator re-derives the phase
+     base in its OWN trusted shell and passes it via `TICK_BASE`, which `scripts/tick.sh` prefers over
+     both the anchor and `.phase-base` — a builder can't forge it to narrow the safety scan. The anchor
+     is the in-session `/phase` + `/wrap` mechanism; it is tamper-EVIDENT and human-reviewed, not
+     builder-proof — headless remains the trust-equivalent path for unattended runs.)
    - Write the EXACT heading line to `.claude/.phase-ready`, verbatim, no extra text
      (do this in both cases — it is cheap and idempotent for the same phase).
    - If this phase's `Mode:` line says `supervised`, say so plainly before continuing — you are

@@ -30,7 +30,9 @@ Close out this session:
       tracked tree is dirty — the grade must describe a clean, committed tree).
    d. Run the gate: `bash scripts/tick.sh "<exact phase heading>"`. It verifies the grade +
       fresh green tests + a clean secret scan + no high-stakes changes, then ticks the roadmap
-      and updates the STATE auto-block. If it REFUSES, surface the reason — do not tick by hand.
+      and updates the STATE auto-block. It prints the exact `BASE..HEAD` range it judged (derived
+      from the `.claude/.phase-anchor` set by `start-phase.sh`) — glance at it and confirm it covers
+      the whole phase. If it REFUSES, surface the reason — do not tick by hand.
       If the phase is `Mode: supervised`, `tick.sh` refuses until you add `--supervised-approved`
       (and optionally `--note "<why it's safe>"`) to explicitly, auditably approve THIS phase at
       THIS commit — that flag clears only the supervised refusal; every other gate still applies.

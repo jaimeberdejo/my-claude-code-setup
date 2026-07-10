@@ -38,6 +38,7 @@ TESTS=(
   test-eval-isolation.sh
   test-tick.sh
   test-roadmap-lib.sh
+  test-start-phase.sh
   test-docs.sh
   test-docs-invariants.sh
   test-close-milestone.sh

@@ -221,12 +221,21 @@ if [ -n "${TICK_BASE+set}" ]; then
   BASE="$TICK_BASE"
   BASE_SRC="TICK_BASE env (orchestrator-trusted)"
   [ -n "$BASE" ] || refuse "TICK_BASE is set but empty — a trusted base must be a real commit (fail-closed)"
+elif [ -f .claude/.phase-anchor ]; then
+  # Manual mode, NEW mechanism (H1): prefer the TRACKED, tamper-evident anchor authored by
+  # scripts/start-phase.sh over the gitignored, builder-writable .phase-base. The anchor's base lives
+  # in committed git history, so advancing it is a VISIBLE commit inside the judged range — not the
+  # silent ignored-file rewrite the old .phase-base allowed. (Still not builder-PROOF — that needs the
+  # orchestrator's out-of-builder shell, i.e. headless TICK_BASE — but it is tamper-evident + reviewed.)
+  BASE=$(grep -E '^base=' .claude/.phase-anchor 2>/dev/null | head -1 | cut -d= -f2-)
+  BASE_SRC=".claude/.phase-anchor (start-phase.sh)"
+  [ -n "$BASE" ] || refuse "no base= in .claude/.phase-anchor — re-run scripts/start-phase.sh (fail-closed)"
 else
   BASE=$(cat .claude/.phase-base 2>/dev/null || true)
   BASE_SRC=".claude/.phase-base"
-  [ -n "$BASE" ] || refuse "missing .claude/.phase-base — cannot determine the phase scope to scan (fail-closed)"
+  [ -n "$BASE" ] || refuse "no phase start recorded — run scripts/start-phase.sh first (fail-closed)"
 fi
-# Strict-ancestor guard (BOTH sources): resolve to a real commit, require it is NOT HEAD (which would
+# Strict-ancestor guard (ALL sources): resolve to a real commit, require it is NOT HEAD (which would
 # make BASE..HEAD empty) and IS a genuine ancestor of HEAD (not unrelated history). Any failure is
 # fail-closed — a forged base can neither narrow the scan to nothing nor point it at the wrong commits.
 BASE_SHA=$(git rev-parse --verify --quiet "${BASE}^{commit}" 2>/dev/null || true)
@@ -235,6 +244,9 @@ BASE_SHA=$(git rev-parse --verify --quiet "${BASE}^{commit}" 2>/dev/null || true
 git merge-base --is-ancestor "$BASE_SHA" "$HEAD" 2>/dev/null \
   || refuse "phase base ($BASE_SRC = '$BASE') is not an ancestor of HEAD (fail-closed)"
 RANGE="${BASE_SHA}..HEAD"
+# Print the exact judged range (C-C): in manual mode the human on the loop is the trusted reviewer, so
+# make the window they are vouching for explicit rather than implicit.
+echo "tick: judging range ${BASE_SHA:0:12}..${HEAD:0:12}  (base source: $BASE_SRC)" >&2
 [ -f .claude/lib/_secret-scan.sh ] && . .claude/lib/_secret-scan.sh 2>/dev/null || true
 [ -f .claude/lib/_high-stakes.sh ] && . .claude/lib/_high-stakes.sh 2>/dev/null || true
 [ -f .claude/lib/_roadmap.sh ]     && . .claude/lib/_roadmap.sh     2>/dev/null || true
