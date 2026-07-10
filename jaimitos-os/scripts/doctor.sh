@@ -67,7 +67,7 @@ REQUIRED_LIBS="_secret-scan _high-stakes _test-cmd _eval-isolation"
 # Shipped project skills (install.sh copies each into .claude/skills/<name>/). setup-jaimitos-os is the
 # installer/meta skill — it is --global-skills only, never per-project, so it is NOT listed here. Keep in
 # sync with .github/scripts/install-smoke.sh (the authoritative post-install manifest gate).
-REQUIRED_SKILLS="roadmap milestone adr ship-check scope-guard explain-diff unstick teach-back mapme quizme grill to-spec glossary design-twice tdd diagnose merge-conflicts"
+REQUIRED_SKILLS="roadmap milestone adr scope-guard unstick teach-back mapme quizme grill to-spec glossary design-twice tdd diagnose merge-conflicts"
 
 echo "jaimitos-os doctor"
 [ -f .claude/.jaimitos-os-version ] && echo "jaimitos-os version: $(cat .claude/.jaimitos-os-version)"

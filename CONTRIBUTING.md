@@ -14,7 +14,7 @@ There are three distinct things in this repo. Edits go to different places:
 - **The `jaimitos-os/` scaffold** — the files that *do* get installed into a user's repo:
   `CLAUDE.md`, `SCAFFOLD.md`, `docs/`, `scripts/`, `.claude/` (hooks, commands, the
   `evaluator` agent, `rules/high-stakes.md`), and the opt-in `.github/workflows/jaimitos-os-ci.yml`.
-- **`skills/`** — the 17 portable skills, each its own dir. `install.sh` copies them into a
+- **`skills/`** — the 15 portable skills, each its own dir. `install.sh` copies them into a
   target's `.claude/skills/` (all except `setup-jaimitos-os`, which is global-only). Seven are
   adaptations of mattpocock/skills (MIT) — see `skills/README.md` § Adapted skills.
 

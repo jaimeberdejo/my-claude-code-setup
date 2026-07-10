@@ -55,7 +55,10 @@ what's enforced), then update these globs to match. `scripts/doctor.sh` warns if
 regex at its shipped default (a sign the enforced gate was never pointed at your real paths).
 
 - **No autopilot here.** This is human-on-the-loop work: a loop may *surface* a diff,
-  but a human approves it before it lands. Keep `permission_mode: default`.
+  but a human approves it before it lands. Keep `permission_mode: default`. Claude Code's `auto`
+  mode is a useful *semantic complement* when you're at the terminal, but never the mechanism: it
+  is ignored for subagents and aborts under `-p`, so it cannot guard a headless run. The enforced
+  gate is `HIGH_STAKES_RE` + `scripts/tick.sh`.
 - **Smallest possible phases.** One reviewable change at a time. No drive-by refactors.
 - **Explainable line by line.** Record real decisions (and the alternative rejected)
   with the `adr` skill so the change is defensible later.

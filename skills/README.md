@@ -3,8 +3,8 @@
 > Part of **[jaimitos-claude-setup](../README.md)** — see the repo-root README for the full
 > picture and how these pair with the jaimitos-os scaffold.
 
-This is the **complete index of all 18 skills** — 10 workflow + 4 engineering + 3 ownership +
-the installer meta-skill; 17 install per-project (everything except the installer). (The three
+This is the **complete index of all 16 skills** — 8 workflow + 4 engineering + 3 ownership +
+the installer meta-skill; 15 install per-project (everything except the installer). (The three
 ownership skills have a deeper writeup in the [Ownership](#ownership) section below; the seven
 skills marked ◆ are adapted from mattpocock/skills — see [Adapted skills](#adapted-skills).)
 
@@ -22,9 +22,7 @@ scaffold-aware, not fully stack-neutral.
 | **milestone** | workflow | add phases / finish a roadmap | Mechanical roadmap lifecycle: add phase(s) mid-project (correct shape, unique heading, position=order), or archive a finished roadmap and start the next batch/milestone ("expand the scope", "the roadmap is done") |
 | **adr** | workflow | make a real decision | Writes a terse 4-line ADR to docs/decisions/ |
 | **glossary** ◆ | workflow | settle domain vocabulary | Creates/updates docs/GLOSSARY.md (one-line definitions + rejected terms); never writes ADRs; injected capped into every session by the session-start hook |
-| **ship-check** | workflow | are about to commit/PR | Runs the project's tests/lint/typecheck + scans for debug leftovers, secrets, missing docs. Verdict: READY / NOT READY (report-only; can't edit) |
-| **scope-guard** | workflow | finish a change | Flags out-of-scope edits, drive-by refactors, unexpected deletions. Verdict: IN SCOPE / SCOPE CREEP (report-only; can't edit) |
-| **explain-diff** | workflow | want a self-review | Summarizes what changed and, mainly, where it might be wrong (risks, assumptions, untested paths) (report-only; can't edit) |
+| **scope-guard** | workflow | finish a change, about to commit | Flags out-of-scope edits, drive-by refactors, unexpected deletions, and a stale paper trail (STATE.md / missing ADR). Verdict: IN SCOPE / SCOPE CREEP (report-only; can't edit) |
 | **unstick** | workflow | are going in circles | Stops the thrash: restates the goal, names the shared failing assumption, proposes fresh hypotheses + the cheapest next test (a bug to reproduce instead? → `diagnose`) |
 | **design-twice** ◆ | engineering | structure a non-trivial module | Two genuinely different designs, trade-off comparison, a choice, and an ADR with the rejected alternative; the planner agent applies it to non-trivial phases |
 | **tdd** ◆ | engineering | build test-first | The red→green loop plus what makes tests worth keeping: pre-agreed seams (from SPEC/plan), anti-patterns (the same list the evaluator grades against), mocking rules. The executor's TDD manual |
@@ -36,13 +34,14 @@ scaffold-aware, not fully stack-neutral.
 | **setup-jaimitos-os** | installer | scaffold a new repo | Runs install.sh then fills CLAUDE.md commands + high-stakes paths. **Global/installer-only** — not copied into per-project `.claude/skills/` |
 
 ## Design principles
-- **Report-only where it matters.** The three review skills (ship-check, scope-guard,
-  explain-diff) set `disallowed-tools: Edit, Write, NotebookEdit` in their frontmatter, so
-  the direct file-editing tools are removed — they produce a verdict, not edits. They keep read-only
-  shell access (to run `git diff`, tests, lint); scope-guard and explain-diff additionally declare an
-  `allowed-tools` surface of read-only git and are instructed to use the shell for inspection only.
-  Treat them as review tools held to a report-only contract, not a hard OS sandbox: don't route a
-  mutation through them. Fixing is a separate, deliberate step.
+- **Report-only where it matters.** The review skill, scope-guard, sets
+  `disallowed-tools: Edit, Write, NotebookEdit` in its frontmatter, so the direct file-editing
+  tools are removed — it produces a verdict, not edits. It keeps read-only shell access (to run
+  `git diff`) via an `allowed-tools` surface of read-only git, and is instructed to use the shell
+  for inspection only. Treat it as a review tool held to a report-only contract, not a hard OS
+  sandbox: don't route a mutation through it. Fixing is a separate, deliberate step.
+  (`ship-check` and `explain-diff` were retired in v2.7.0 — Claude Code's native `/code-review`,
+  `/security-review` and `/verify` now cover what they did, and are maintained upstream.)
 - **Portable, with a caveat.** They read commands from your CLAUDE.md/README rather than
   hardcoding a stack, so the same skill works in a Python service and a Next.js app.
   But several (roadmap, and the ownership skills) assume the jaimitos-os `docs/` layout
@@ -62,7 +61,7 @@ worktree-integration↔merge-conflicts). Each adapted SKILL.md carries a one-lin
 comment; this paragraph is the full notice.
 
 ## Install
-**Easiest — the repo installer** copies all 17 portable skills per-project (and
+**Easiest — the repo installer** copies all 15 portable skills per-project (and
 `setup-jaimitos-os` only with `--global-skills`):
 ```bash
 bash /path/to/jaimitos-claude-setup/install.sh .                 # per-project skills
@@ -71,7 +70,7 @@ bash /path/to/jaimitos-claude-setup/install.sh . --global-skills # also into ~/.
 **By hand** — everything except the installer one:
 ```bash
 mkdir -p .claude/skills
-cp -r grill to-spec roadmap milestone adr glossary ship-check scope-guard explain-diff unstick \
+cp -r grill to-spec roadmap milestone adr glossary scope-guard unstick \
       design-twice tdd diagnose merge-conflicts teach-back mapme quizme .claude/skills/
 ```
 (Swap `.claude/skills` for `~/.claude/skills` to install globally for all projects.)
@@ -79,25 +78,27 @@ cp -r grill to-spec roadmap milestone adr glossary ship-check scope-guard explai
 ## Troubleshooting
 | Symptom | Fix |
 |---|---|
-| A skill didn't auto-trigger | Invoke it by name (e.g. `ship-check`), or use a phrase from its `description:`. Auto-trigger is best-effort, not guaranteed. |
+| A skill didn't auto-trigger | Invoke it by name (e.g. `scope-guard`), or use a phrase from its `description:`. Auto-trigger is best-effort, not guaranteed. |
 | Skill errors "can't find docs/SPEC.md" | You're using a scaffold-aware skill (roadmap/ownership) without the jaimitos-os `docs/` layout. Install the scaffold (`install.sh`) or adjust the skill's paths. |
 
 ## Use
 They auto-trigger on the phrases in each skill's description, or invoke by name:
 ```
-ship-check                 # before committing
 scope-guard                # after a change, before commit
-explain-diff               # self-review
 unstick                    # when the same fix keeps failing
 "log this decision: ..."   # adr
 ```
 
 ## A natural sequence
-A clean end-of-task ritual chains three of them:
+A clean end-of-task ritual chains one skill with two native commands:
 ```
-scope-guard   →   explain-diff   →   ship-check
-(stayed on task)  (what's risky)     (verified + ready)
+scope-guard   →   /code-review   →   /security-review  (or /verify)
+(stayed on task,  (what's risky)     (safe to ship)
+ paper trail ok)
 ```
+`/code-review`, `/security-review` and `/verify` are built into Claude Code and **supersede** the
+retired `explain-diff` and `ship-check` skills. Only `scope-guard` is report-only by frontmatter
+contract; the native commands set their own.
 Run that before any commit and most of what slips through review gets caught first.
 
 ## The spec lifecycle (grill → to-spec → roadmap)

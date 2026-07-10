@@ -39,9 +39,9 @@ Then it branches on whether there's an existing stack to detect:
 New to it all? Work through `PRACTICE-PROJECT.md` first.
 
 > **Two parts, how they relate:** the **`jaimitos-os/` scaffold** (hooks, commands, docs layout,
-> autopilot) and the **`skills/` pack** (18 skills; 17 are copied per-project — see
+> autopilot) and the **`skills/` pack** (16 skills; 15 are copied per-project — see
 > [`skills/README.md`](skills/README.md) for the authoritative count and catalog). Skills work
-> standalone, but several (`roadmap`, `ship-check`, `adr`, …) assume the scaffold's `docs/`
+> standalone, but several (`roadmap`, `scope-guard`, `adr`, …) assume the scaffold's `docs/`
 > layout — install both for the full experience.
 
 ---
@@ -66,7 +66,7 @@ jaimitos-claude-setup/
 │       ├── agents/                  # researcher, planner, executor, evaluator — one per /phase stage
 │       ├── rules/high-stakes.md     # path-scoped extra care
 │       └── hooks/                   # 7 deterministic shell hooks + 4 shared libs (_secret-scan, _high-stakes, _test-cmd, _eval-isolation)
-└── skills/                ← 18 skills (17 portable + setup-jaimitos-os installer) — see skills/README.md
+└── skills/                ← 16 skills (15 portable + setup-jaimitos-os installer) — see skills/README.md
 ```
 
 > The repo-root `README.md` documents the **toolkit**, so `install.sh` never copies it into your
@@ -201,18 +201,16 @@ libraries, not hooks.
 
 ## Skills (`skills/`)
 
-Eighteen skills — ◆ marks the seven adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT):
+Sixteen skills — ◆ marks the seven adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT):
 
-**Workflow (10)**
+**Workflow (8)**
 - **grill** ◆ — relentless one-question-per-turn stress-test of a plan, each question with a recommendation
 - **to-spec** ◆ — synthesize the design conversation into docs/SPEC.md (seams confirmed, measurable criterion required)
 - **roadmap** — SPEC → phased docs/ROADMAP.md with measurable "Done when:" lines
 - **milestone** — add phases mid-project / archive a finished roadmap
 - **adr** — 4-line decision records in docs/decisions/
 - **glossary** ◆ — docs/GLOSSARY.md: one-line domain definitions + rejected terms
-- **ship-check** — pre-commit verdict: tests/lint/leftovers (report-only)
-- **scope-guard** — flags out-of-scope edits and drive-by refactors (report-only)
-- **explain-diff** — self-review: what changed and where it might be wrong (report-only)
+- **scope-guard** — flags out-of-scope edits, drive-by refactors, and a stale paper trail (report-only)
 - **unstick** — breaks a circular-debugging loop by naming the shared failing assumption
 
 **Engineering (4)**
@@ -225,9 +223,12 @@ Eighteen skills — ◆ marks the seven adapted from [mattpocock/skills](https:/
 docs/ARCHITECTURE.md) · **quizme** (cold-open understanding check) — plus the
 **setup-jaimitos-os** installer meta-skill (global-only).
 
-A clean pre-commit chain is **`scope-guard → explain-diff → ship-check`**. **The authoritative
-catalog (descriptions, triggers, the MIT attribution notice) is
-[`skills/README.md`](skills/README.md)** — counts live there so they can't drift here.
+A clean pre-commit chain is **`scope-guard` → `/code-review` → `/security-review`** (or `/verify`).
+Claude Code's native commands **supersede** the retired `explain-diff` (≈ `/code-review`) and
+`ship-check` (≈ `/security-review` + `/verify`) skills, dropped in v2.7.0; `scope-guard` stays
+because "did this change stay on task, and is its paper trail current?" is scaffold-specific and
+nothing native answers it. **The authoritative catalog (descriptions, triggers, the MIT attribution
+notice) is [`skills/README.md`](skills/README.md)** — counts live there so they can't drift here.
 
 ---
 

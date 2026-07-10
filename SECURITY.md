@@ -81,6 +81,13 @@ prompt) only *asks* a model to comply.
   refuses fail-closed if secret-shaped files would ride into the mount — use it for every
   unattended run. Prefer `acceptEdits` (the default, no flag needed) whenever a human is at the
   terminal to approve prompts.
+- **Claude Code's `auto` permission mode is an in-session *semantic complement*, not a replacement
+  for the deterministic high-stakes gate.** `auto` asks a model to judge, per tool call, whether an
+  action looks dangerous — genuinely useful, and it catches things a regex never will. It cannot be
+  the mechanism here: it is **ignored for subagents** (the builder/evaluator do their work there)
+  and **aborts under `-p`** (headless, which is exactly where nobody is watching). So it adds a
+  second opinion when a human is at the terminal, while `HIGH_STAKES_RE` + `tick.sh` remain the
+  thing that actually stops an unattended loop. Run both; rely on the gate.
 - **The high-stakes gate only protects paths YOU point it at.** Out of the box,
   `HIGH_STAKES_RE` in `_high-stakes.sh` and `paths:` in `high-stakes.md` are generic
   examples. If you don't edit them to match your real auth/migration/money/delete dirs, a

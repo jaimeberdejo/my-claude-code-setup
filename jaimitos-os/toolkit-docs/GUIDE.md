@@ -84,11 +84,11 @@ your-repo/
     │   ├── _secret-scan.sh        # SHARED: filename+content secret scan (commit-on-stop + tick + autopilot)
     │   ├── _high-stakes.sh        # SHARED: high-stakes path list + content matcher (the supervised gate)
     │   └── _test-cmd.sh           # SHARED: resolves the project test command (test-gate + test-evidence)
-    └── skills/                    # 17 per-project skills (see skills/README.md; NOT copied here:
+    └── skills/                    # 15 per-project skills (see skills/README.md; NOT copied here:
                                     #   setup-jaimitos-os is the global-only installer meta-skill)
         ├── grill/ · to-spec/ · roadmap/ · milestone/ · adr/ · glossary/   # think → spec → plan
         ├── design-twice/ · tdd/ · diagnose/ · merge-conflicts/            # engineering
-        ├── ship-check/ · scope-guard/ · explain-diff/ · unstick/          # review + debugging (report-only x3)
+        ├── scope-guard/ · unstick/                                        # review + debugging (scope-guard is report-only)
         └── teach-back/ · mapme/ · quizme/                                 # ownership
 ```
 
@@ -1086,7 +1086,7 @@ A broad pack of process skills. Map each to a stage of the loop rather than adop
 | `systematic-debugging` | When a phase stalls (the 3-strike cap trips) — same slot as the bundled `diagnose` + `unstick`. |
 | `using-git-worktrees` | Manual isolation; the headless `autopilot.sh` already does this for loops. |
 | `verification-before-completion` | Philosophically identical to the evaluator's default-FAIL + the `tick.sh` evidence gate ("evidence before assertions"). |
-| `requesting-code-review` / `receiving-code-review` | Downstream of a phase; complements `ship-check` + the evaluator. |
+| `requesting-code-review` / `receiving-code-review` | Downstream of a phase; complements native `/code-review` + the evaluator. |
 | `writing-plans` / `executing-plans` / `subagent-driven-development` | An alternative planning/execution layer — **the classic spine collision.** Don't double-plan with `/phase`; pick one. |
 
 **The biggest overlap to avoid:** superpowers' plan → execute → subagent machinery is a *second
@@ -1095,12 +1095,13 @@ systems will fight over the same files and the same "done." Use superpowers for 
 doesn't cover (brainstorming, debugging, review, verification discipline) and let `/phase` own the build.
 
 ### Don't forget the built-in layer
-Before reaching outside, the bundled skills (17 per-project — see `skills/README.md`) already
+Before reaching outside, the bundled skills (15 per-project — see `skills/README.md`) already
 cover most of the loop: `grill`/`to-spec`/`roadmap`/`milestone` (think → spec → plan),
 `design-twice`/`tdd`/`diagnose`/`merge-conflicts` (engineering), `adr`/`glossary`/`mapme`
-(knowledge), `ship-check`/`scope-guard`/`explain-diff` (review), `teach-back`/`quizme`
-(ownership), `unstick` (debugging reset). External packs are for *depth in one area*, not
-replacements — reach for them when the built-in skill isn't enough, not by default.
+(knowledge), `scope-guard` (review — the native `/code-review` and `/security-review` cover the
+rest), `teach-back`/`quizme` (ownership), `unstick` (debugging reset). External packs are for
+*depth in one area*, not replacements — reach for them when the built-in skill isn't enough, not
+by default.
 
 ### The one rule, compressed
 **Steps compose; spines collide.** Grill, brainstorm, debug, review — steps, wire them in freely. A
@@ -1127,7 +1128,7 @@ COMMANDS     /resume       orient at session start
              @evaluator     grade a phase independently
 
 SKILLS       workflow:    grill · to-spec · roadmap · milestone · adr · glossary
-                          · ship-check · scope-guard · explain-diff · unstick
+                          · scope-guard · unstick
              engineering: design-twice · tdd · diagnose · merge-conflicts
              ownership:   teach-back · mapme · quizme
              installer:   setup-jaimitos-os (install + customize; global-only)
