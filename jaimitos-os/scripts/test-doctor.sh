@@ -214,5 +214,46 @@ grep -qi "no well-formed --- frontmatter" "$WORK/fmbad.out" \
   || fail "fm: malformed agent frontmatter not warned"
 
 echo ""
+echo "F2: doctor lists active 'high-stakes-ok:' content suppressions (symmetry with the path allowlist)"
+echo ""
+# Control: a pristine scaffold declares no suppressions. The lib/rule-doc/guard-test mentions of the
+# marker DEFINE or exercise it; if the exclusion filter or the content-regex pairing regressed, they
+# would surface here as phantom suppressions on every healthy install.
+mkscaffold "$WORK/hsok0"
+( cd "$WORK/hsok0" && bash scripts/doctor.sh > "$WORK/hsok0.out" 2>&1 ); hs0rc=$?
+grep -q "no active 'high-stakes-ok:' content suppressions" "$WORK/hsok0.out" \
+  && pass "hs-ok: pristine scaffold reports no content suppressions (no phantom hits)" \
+  || fail "hs-ok: pristine scaffold did not report a clean content-suppression set"
+[ "$hs0rc" -eq 0 ] && pass "hs-ok: the clean report leaves doctor's exit code at 0" \
+  || fail "hs-ok: clean content-suppression report wrongly made doctor exit non-zero (rc=$hs0rc)"
+
+# Plant a REAL suppression: a line that the content scanner would flag (os.system + rm -rf), silenced
+# by an inline marker with a reason. It must be TRACKED — `git grep` only sees tracked files.
+mkscaffold "$WORK/hsok1"
+mkdir -p "$WORK/hsok1/src"
+printf 'os.system("rm -rf /tmp/build-cache")  # high-stakes-ok: regenerable local cache\n' \
+  > "$WORK/hsok1/src/cleanup.py"
+( cd "$WORK/hsok1" && git add src/cleanup.py >/dev/null 2>&1 )
+( cd "$WORK/hsok1" && bash scripts/doctor.sh > "$WORK/hsok1.out" 2>&1 ); hs1rc=$?
+{ grep -q "suppressed: src/cleanup.py:1" "$WORK/hsok1.out" \
+  && grep -q "regenerable local cache" "$WORK/hsok1.out" \
+  && grep -q "review every one" "$WORK/hsok1.out"; } \
+  && pass "hs-ok: a planted marker is listed by path:line with its reason" \
+  || fail "hs-ok: planted content suppression was not listed"
+# Report-only: surfacing a suppression must never itself become a gate.
+[ "$hs1rc" -eq 0 ] && pass "hs-ok: listing a suppression stays advisory (doctor still exits 0)" \
+  || fail "hs-ok: a listed suppression wrongly made doctor exit non-zero (rc=$hs1rc)"
+
+# A marker on a line the content scanner would NOT flag suppresses nothing, so it must not be listed.
+mkscaffold "$WORK/hsok2"
+mkdir -p "$WORK/hsok2/src"
+printf 'x = 1  # high-stakes-ok: this suppresses nothing at all\n' > "$WORK/hsok2/src/inert.py"
+( cd "$WORK/hsok2" && git add src/inert.py >/dev/null 2>&1 )
+( cd "$WORK/hsok2" && bash scripts/doctor.sh > "$WORK/hsok2.out" 2>&1 )
+grep -q "suppressed: src/inert.py" "$WORK/hsok2.out" \
+  && fail "hs-ok: an inert marker (line the content gate never flags) was wrongly listed" \
+  || pass "hs-ok: an inert marker on an unflagged line is not reported as a suppression"
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All doctor --fix tests passed."; exit 0
 else echo "$FAILS doctor test(s) FAILED."; tail -n 15 "$WORK/out" 2>/dev/null; exit 1; fi

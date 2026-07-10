@@ -256,6 +256,11 @@ your checkout; `--no-worktree` opts out (runs in-place, warned loudly). `--pr` o
 end and never touches main (secret-scanned before any push); `--allow-dirty` skips the clean-tree
 preflight (use sparingly — it removes a safety check).
 
+That pre-push scan reads the **net** `BASE..HEAD` diff, so a secret added in one commit and deleted
+in a later one **within the same phase** nets to zero and is missed — while `--pr` still pushes the
+commit that contains it. For any run that pushes, set **`LEAN_SECRET_SCANNER=gitleaks`** (or
+`trufflehog`): it scans the range commit by commit, and is fail-closed if the tool isn't installed.
+
 **`--dangerously-skip-permissions`** — without a TTY, the default `--permission-mode acceptEdits`
 cannot approve writes to `.claude/` (the phase-tracking markers `/phase` needs) or Bash commands
 like the test suite, so a truly unattended run needs this flag to complete even one phase — pass

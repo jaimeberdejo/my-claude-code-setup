@@ -48,6 +48,15 @@ prompt) only *asks* a model to comply.
   **fail-closed** if the tool isn't installed (the scan errors rather than silently degrading to
   the regex). `doctor.sh` hard-fails when a selected scanner is missing. Still opt-in, because it
   adds an external dependency.
+- **A secret added and then removed inside the same phase slips past the default regex scan — and
+  `--pr` still pushes the commit that contains it.** `secret_scan_diff` scans the NET two-endpoint
+  diff `BASE..HEAD`, so a credential committed in one commit and `git rm`'d in a later one within
+  the same phase nets to zero and is reported clean. The tick gate ticks, and the push gate — which
+  scans that same net diff — lets `--pr` push the whole branch, intermediate commit included. This
+  is a limit of the **default `regex` backend**, not of the gate: `LEAN_SECRET_SCANNER=gitleaks`
+  (or `trufflehog`) scans the range **commit by commit** and catches it, and is fail-closed if the
+  tool isn't installed. **Set a real backend for any run that pushes** (`--pr`), or rewrite the
+  branch history before pushing.
 - **`permissions.deny` is defense-in-depth, not a boundary.** The `Read(...)` denies are a
   real boundary; the `Bash(...)` denies are a bypassable speed-bump (`less`, `source`,
   `python -c …`). There are deliberately **no network denies** (v2.5.0 removed the old
