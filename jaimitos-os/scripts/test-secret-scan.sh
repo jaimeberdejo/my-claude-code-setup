@@ -94,5 +94,49 @@ secret_scan_diff "$BASE..HEAD" >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 1 ] && echo "  ✓ range containing an AWS key → secret (1)" || { echo "  ✗ range with secret rc=$rc"; FAILS=$((FAILS+1)); }
 
 echo ""
+echo "LEAN_SECRET_SCANNER backend dispatch (contract + 0/1/2 exit codes preserved; fail-closed):"
+# HEAD now: c3 (AWS key) on top of c2, c1, init. BASE = HEAD at the point captured above (c1's ref).
+DIRTY_RANGE="$BASE..HEAD"                        # spans the commit that added the AWS key
+CLEAN_RANGE="$BASE..$(git rev-parse 'HEAD~1')"   # BASE..(commit before the secret) → no secret
+
+# 1 — default (unset) == the regex backend, unchanged.
+( unset LEAN_SECRET_SCANNER; secret_scan_diff "$DIRTY_RANGE" >/dev/null 2>&1; exit $? ); rc=$?
+[ "$rc" -eq 1 ] && echo "  ✓ default (unset) backend = regex, still catches the AWS key (1)" || { echo "  ✗ default backend changed (rc=$rc)"; FAILS=$((FAILS+1)); }
+LEAN_SECRET_SCANNER=regex secret_scan_diff "$CLEAN_RANGE" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && echo "  ✓ LEAN_SECRET_SCANNER=regex on a clean range → clean (0)" || { echo "  ✗ regex clean range rc=$rc"; FAILS=$((FAILS+1)); }
+
+# 2 — unknown backend → fail-closed (2), never a silent regex fallback.
+LEAN_SECRET_SCANNER=bogus secret_scan_diff "$CLEAN_RANGE" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && echo "  ✓ unknown backend → fail-closed (2)" || { echo "  ✗ unknown backend rc=$rc (expected 2)"; FAILS=$((FAILS+1)); }
+
+# 3 — gitleaks selected but binary absent → fail-closed (2), no downgrade to regex.
+if ! command -v gitleaks >/dev/null 2>&1; then
+  LEAN_SECRET_SCANNER=gitleaks secret_scan_diff "$CLEAN_RANGE" >"$WORK/gl.out" 2>&1; rc=$?
+  { [ "$rc" -eq 2 ] && grep -qi "not installed" "$WORK/gl.out"; } \
+    && echo "  ✓ gitleaks backend + binary absent → fail-closed (2), no silent regex fallback" \
+    || { echo "  ✗ gitleaks-absent not fail-closed (rc=$rc)"; FAILS=$((FAILS+1)); }
+else
+  echo "  · SKIP gitleaks-absent case (gitleaks is installed on this host)"
+fi
+
+# 4 — a STUB gitleaks on PATH translates its findings + exit code to the lib's contract.
+STUBDIR="$WORK/stubbin"; mkdir -p "$STUBDIR"
+cat > "$STUBDIR/gitleaks" <<'EOF'
+#!/usr/bin/env bash
+rp=""; for a in "$@"; do case "$a" in --report-path=*) rp="${a#--report-path=}";; esac; done
+[ -n "$rp" ] && printf '[{"RuleID":"aws-key","Description":"AWS key","File":"r_secret.txt","StartLine":1}]\n' > "$rp"
+exit "${STUB_GITLEAKS_RC:-1}"
+EOF
+chmod +x "$STUBDIR/gitleaks"
+out=$(PATH="$STUBDIR:$PATH" LEAN_SECRET_SCANNER=gitleaks STUB_GITLEAKS_RC=1 secret_scan_diff "$CLEAN_RANGE" 2>&1); rc=$?
+{ [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q "\[gitleaks\] aws-key in r_secret.txt"; } \
+  && echo "  ✓ stub gitleaks exit 1 → findings translated to the lib format, rc 1" \
+  || { echo "  ✗ stub gitleaks leak path broken (rc=$rc): $out"; FAILS=$((FAILS+1)); }
+PATH="$STUBDIR:$PATH" LEAN_SECRET_SCANNER=gitleaks STUB_GITLEAKS_RC=0 secret_scan_diff "$CLEAN_RANGE" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && echo "  ✓ stub gitleaks exit 0 → clean, rc 0" || { echo "  ✗ stub gitleaks clean path rc=$rc"; FAILS=$((FAILS+1)); }
+PATH="$STUBDIR:$PATH" LEAN_SECRET_SCANNER=gitleaks STUB_GITLEAKS_RC=2 secret_scan_diff "$CLEAN_RANGE" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && echo "  ✓ stub gitleaks error exit → fail-closed (2)" || { echo "  ✗ stub gitleaks error path rc=$rc (expected 2)"; FAILS=$((FAILS+1)); }
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All secret-scan fixture tests passed."; exit 0
 else echo "$FAILS fixture test(s) FAILED."; exit 1; fi

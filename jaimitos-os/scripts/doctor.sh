@@ -46,6 +46,7 @@ PROBLEMS=0
 ok()    { printf '  ✓ %s\n' "$1"; }
 bad()   { printf '  ✗ %s\n' "$1"; PROBLEMS=$((PROBLEMS+1)); }
 warn()  { printf '  ! %s\n' "$1"; }
+info()  { printf '  · %s\n' "$1"; }   # informational only — not a problem, not a warning
 fixed() { printf '  ⚙ fixed: %s\n' "$1"; }
 
 FIX=0
@@ -202,6 +203,20 @@ if [ -f "$HS_ALLOWLIST" ]; then
 else
   ok "no high-stakes path allowlist file — no path-gate suppressions active"
 fi
+echo ""
+
+echo "Secret scanner backend (LEAN_SECRET_SCANNER):"
+# The default `regex` backend is a prefix-matcher, not a scanner. A project can opt into a real
+# scanner as the backend of secret_scan_diff (same contract). If it did, the tool MUST be installed
+# or every scan fails closed (rc 2) — so a missing binary is a hard `bad`. On the default, `info`.
+SCANNER="${LEAN_SECRET_SCANNER:-regex}"
+case "$SCANNER" in
+  regex) info "using the built-in regex secret matcher (default; prefix-only — cannot catch prefix-less/high-entropy secrets). For real coverage, set LEAN_SECRET_SCANNER=gitleaks (or trufflehog) and install it." ;;
+  gitleaks|trufflehog)
+    if command -v "$SCANNER" >/dev/null 2>&1; then ok "LEAN_SECRET_SCANNER=$SCANNER and the '$SCANNER' binary is on PATH"
+    else bad "LEAN_SECRET_SCANNER=$SCANNER but '$SCANNER' is NOT installed — every secret scan will fail closed (rc 2). Install it or unset LEAN_SECRET_SCANNER."; fi ;;
+  *) bad "LEAN_SECRET_SCANNER='$SCANNER' is not a valid backend (expected regex|gitleaks|trufflehog)" ;;
+esac
 echo ""
 
 echo "Hook files present:"

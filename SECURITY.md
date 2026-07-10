@@ -43,6 +43,11 @@ prompt) only *asks* a model to comply.
   high-entropy strings will pass through and be auto-committed with a normal "✓ checkpointed"
   message. Do NOT rely on it as a safety net: use a real scanner (gitleaks, trufflehog, GitHub
   secret scanning) + a pre-commit hook, and review your diffs. This guard only stops the obvious.
+  Since v2.6.0 you can wire a real scanner IN as the backend: set `LEAN_SECRET_SCANNER=gitleaks`
+  (or `trufflehog`) and it replaces the regex inside the same gate — same contract, and
+  **fail-closed** if the tool isn't installed (the scan errors rather than silently degrading to
+  the regex). `doctor.sh` hard-fails when a selected scanner is missing. Still opt-in, because it
+  adds an external dependency.
 - **`permissions.deny` is defense-in-depth, not a boundary.** The `Read(...)` denies are a
   real boundary; the `Bash(...)` denies are a bypassable speed-bump (`less`, `source`,
   `python -c …`). There are deliberately **no network denies** (v2.5.0 removed the old

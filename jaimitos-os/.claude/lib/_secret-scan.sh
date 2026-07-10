@@ -43,8 +43,10 @@ _secret_basename_match() {
 # user:password (requires BOTH non-empty, so bare/credless URLs do NOT trip it).
 # IMPORTANT — this is a regex prefix-matcher, NOT a scanner: it CANNOT catch prefix-less secrets
 # (bare-hex Twilio/Mailgun-style tokens, Django/Rails random SECRET_KEY values, generic
-# `password=`/high-entropy strings). For real coverage use gitleaks/trufflehog + a pre-commit
-# hook. This is a best-effort commit-time speed-bump, not a guarantee.
+# `password=`/high-entropy strings). For real coverage set LEAN_SECRET_SCANNER=gitleaks (or
+# trufflehog) to swap in that scanner as the backend of the range scan below — same contract, and
+# fail-closed if the tool is missing (see secret_scan_diff). This regex default is a best-effort
+# commit-time speed-bump, not a guarantee.
 _SECRET_CONTENT_RE='AKIA[0-9A-Z]{16}|(aws_secret_access_key|AWS_SECRET_ACCESS_KEY)[^A-Za-z0-9]{1,8}[A-Za-z0-9/+]{40}|-----BEGIN [A-Z ]*PRIVATE KEY[A-Z ]*-----|(^|[^A-Za-z0-9])sk-(ant|proj|svcacct|admin|None)-[A-Za-z0-9_-]{20,}|(^|[^A-Za-z0-9])sk-[A-Za-z0-9]{20,}|sk_live_[A-Za-z0-9]{16,}|rk_live_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|GOCSPX-[A-Za-z0-9_-]{20,}|ya29\.[A-Za-z0-9_-]{20,}|dop_v1_[a-f0-9]{40,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{50,}|glpat-[A-Za-z0-9_-]{16,}|npm_[A-Za-z0-9]{30,}|SG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}|key-[0-9a-f]{32}|ey[A-Za-z0-9_-]{8,}\.ey[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|AccountKey=[A-Za-z0-9/+]{40,}|[a-zA-Z][a-zA-Z0-9+.-]*://[^/[:space:]:@]+:[^/[:space:]:@]+@'
 
 # _secret_content_hits <git-diff-args...>: emit up to 10 ADDED lines (leading '+'
@@ -81,10 +83,61 @@ secret_scan_staged() {
   return 0
 }
 
+# --- opt-in real scanners (LEAN_SECRET_SCANNER=gitleaks|trufflehog) --------------------------------
+# The regex path (default) is a prefix-matcher, NOT a scanner: it CANNOT catch prefix-less secrets.
+# LEAN_SECRET_SCANNER lets a project opt into a real entropy/verification scanner as the backend of
+# secret_scan_diff, WITHOUT changing the function's contract (same args, same 0/1/2 exit codes) — so
+# tick.sh and commit-on-stop.sh consume it unchanged. FAIL-CLOSED: if the chosen tool isn't
+# installed, the scan returns 2 (cannot-scan), never a silent downgrade to regex — you chose a
+# guarantee, so its absence stops you rather than degrading you without notice.
+
+# _secret_scan_gitleaks <base> <head>: run gitleaks over base..head. 0 clean / 1 leaks / 2 error.
+_secret_scan_gitleaks() {
+  local base="$1" head="$2" tmp rc
+  command -v gitleaks >/dev/null 2>&1 || { echo "secret-scan: LEAN_SECRET_SCANNER=gitleaks but 'gitleaks' is not installed — fail-closed"; return 2; }
+  tmp=$(mktemp 2>/dev/null || echo "/tmp/gitleaks.$$.json")
+  # `git`/`--log-opts` scan the exact commit range; `detect`/`protect` are deprecated since v8.19.0.
+  # --exit-code 1 → exit 1 when leaks are found; exit 0 = clean; any other code = a real error.
+  gitleaks git --log-opts="${base}..${head}" --report-format=json --report-path="$tmp" \
+    --redact --exit-code 1 --no-banner >/dev/null 2>&1
+  rc=$?
+  if [ "$rc" -eq 0 ]; then rm -f "$tmp"; return 0; fi
+  if [ "$rc" -eq 1 ]; then
+    if command -v jq >/dev/null 2>&1 && [ -s "$tmp" ]; then
+      jq -r '.[]? | "  [gitleaks] \(.RuleID // .Description // "secret") in \(.File // "?"):\(.StartLine // "?")"' "$tmp" 2>/dev/null
+    else
+      echo "  [gitleaks] secret(s) found in ${base}..${head} (see gitleaks output)"
+    fi
+    rm -f "$tmp"; return 1
+  fi
+  echo "secret-scan: gitleaks exited $rc (not a clean/leak result) — fail-closed"; rm -f "$tmp"; return 2
+}
+
+# _secret_scan_trufflehog <base> <head>: EXPERIMENTAL backend. trufflehog has open bugs with
+# non-ancestor bases (it can scan the WHOLE history) and can exit 0 on an invalid commit — so we
+# require base to be a strict ancestor of head first, and treat any non-clean/non-leak exit as error.
+_secret_scan_trufflehog() {
+  local base="$1" head="$2" out rc
+  command -v trufflehog >/dev/null 2>&1 || { echo "secret-scan: LEAN_SECRET_SCANNER=trufflehog but 'trufflehog' is not installed — fail-closed"; return 2; }
+  git merge-base --is-ancestor "$base" "$head" 2>/dev/null \
+    || { echo "secret-scan: trufflehog base '$base' is not an ancestor of '$head' — refusing (trufflehog may scan all history) — fail-closed"; return 2; }
+  out=$(trufflehog git "file://$(git rev-parse --show-toplevel)" --since-commit "$base" \
+        --only-verified --fail --json --no-update 2>/dev/null); rc=$?
+  if [ "$rc" -eq 0 ]; then return 0; fi
+  if [ "$rc" -eq 183 ]; then   # trufflehog's documented "verified secrets found" exit code under --fail
+    printf '%s\n' "$out" | (command -v jq >/dev/null 2>&1 \
+      && jq -r 'select(.Verified==true) | "  [trufflehog] \(.DetectorName) in \(.SourceMetadata.Data.Git.file // "?")"' 2>/dev/null \
+      || sed 's/^/  [trufflehog] /')
+    return 1
+  fi
+  echo "secret-scan: trufflehog exited $rc (not a clean/leak result) — fail-closed"; return 2
+}
+
 # secret_scan_diff <git-range>: scan a commit RANGE (e.g. "$BASE..HEAD") by filename
 # and content. Used before pushing (the builder's per-task commits don't pass through
 # the Stop-hook guard, so this is the gate that stops a secret reaching a remote).
 # Echoes findings; returns 0 clean / 1 secrets / 2 cannot-scan (fail-closed).
+# Backend selected by LEAN_SECRET_SCANNER (regex default | gitleaks | trufflehog).
 secret_scan_diff() {
   local range="$1"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "secret-scan: not a git repo"; return 2; }
@@ -96,6 +149,14 @@ secret_scan_diff() {
   git rev-parse --verify --quiet "${range%%..*}^{commit}" >/dev/null 2>&1 \
     && git rev-parse --verify --quiet "${range##*..}^{commit}" >/dev/null 2>&1 \
     || { echo "secret-scan: cannot resolve range '$range' — fail-closed"; return 2; }
+  # Backend dispatch. The range is already validated above, so both endpoints resolve. The regex
+  # path (default) falls through to the original logic below — byte-for-byte unchanged.
+  case "${LEAN_SECRET_SCANNER:-regex}" in
+    regex) : ;;
+    gitleaks)   _secret_scan_gitleaks   "${range%%..*}" "${range##*..}"; return $? ;;
+    trufflehog) _secret_scan_trufflehog "${range%%..*}" "${range##*..}"; return $? ;;
+    *) echo "secret-scan: unknown LEAN_SECRET_SCANNER='${LEAN_SECRET_SCANNER}' (expected regex|gitleaks|trufflehog) — fail-closed"; return 2 ;;
+  esac
   local -a found=()
   local f hits line
   while IFS= read -r f; do

@@ -428,6 +428,18 @@ decides whether that PASS is allowed to become a tick.
 > resolution). They're sourced by the hooks, `tick.sh`, and `scripts/autopilot.sh`, so the same
 > guards run everywhere — a single source of truth for each.
 
+#### The secret scan is a prefix-matcher by default — swap in a real scanner if you need one
+`_secret-scan.sh`'s built-in matcher is honest about its limit: it catches ~20 fixed-PREFIX token
+shapes (AWS, Stripe, GitHub, …) but **cannot** catch prefix-less secrets — bare-hex tokens, random
+`SECRET_KEY` values, generic `password=`. It's a commit-time speed-bump, not a scanner. Since
+v2.6.0 you can opt into a real one without touching any consumer: set
+**`LEAN_SECRET_SCANNER=gitleaks`** (or `trufflehog`) and it becomes the backend of
+`secret_scan_diff` — same function, same 0/1/2 contract, so `tick.sh` and `commit-on-stop.sh` use it
+unchanged. It is **fail-closed**: if you select a scanner and its binary isn't installed, the scan
+returns "cannot-scan" (rc 2) and the gate stops — it never silently falls back to the weaker regex.
+`doctor.sh` hard-fails (`✗`) when a selected scanner is missing. `trufflehog` is experimental (open
+bugs with non-ancestor bases); the lib guards it by requiring the base be a strict ancestor first.
+
 ### High-stakes detection (two ways in)
 `_high-stakes.sh` catches consequential changes by **path** (`HIGH_STAKES_RE` — auth, oauth,
 session, payment, billing, migration, wallet, ledger, kyc, delete, deploy, webhook, …) **and by

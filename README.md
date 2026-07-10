@@ -305,7 +305,9 @@ never auto-ticked or pushed (supervised review instead); the gate's own config c
 the phase it gates; under headless autopilot the scan window and every gate-control file are
 orchestrator-trusted (re-derived in a trusted shell + byte-integrity-checked); the manual `/wrap`
 path is the weaker, human-supervised one — run it from a clean tree. Customize `HIGH_STAKES_RE`
-per project (`doctor.sh` warns while it's the shipped default).
+per project (`doctor.sh` warns while it's the shipped default). The built-in secret scan is a
+prefix-matcher; opt into a real one with **`LEAN_SECRET_SCANNER=gitleaks`** (or `trufflehog`) —
+same gate, fail-closed if the tool is missing.
 
 **The full security narrative lives in [GUIDE.md Parts 4–5](jaimitos-os/toolkit-docs/GUIDE.md#part-4--the-per-phase-cycle-hooks--the-completion-gate)
 (single source — enforcement reality, gate integrity, the scan window), plus the policy in [SECURITY.md](SECURITY.md).**
