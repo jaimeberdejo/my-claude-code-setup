@@ -31,8 +31,16 @@ mkrepo a3; mkdir -p "$REPO/docs/decisions"; : > "$REPO/docs/decisions/ADR-007-z.
 echo ""
 echo "lint-roadmap tests"; echo ""
 mkrepo l1
-printf '## Phase 1 — A\n- [ ] t\nDone when: the suite is green\n\n## Phase 2 — B\n- [ ] u\nDone when: builds clean\n' > "$REPO/docs/ROADMAP.md"
-( cd "$REPO" && bash scripts/lint-roadmap.sh --strict ) >/dev/null 2>&1 && pass "lint-roadmap: all phases have Done when → exit 0" || fail "lint-roadmap false-positived on a good roadmap"
+printf '## Phase 1 — A\n- [ ] t\nDone when: the suite is green\nMode: loopable\n\n## Phase 2 — B\n- [ ] u\nDone when: builds clean\nMode: supervised\n' > "$REPO/docs/ROADMAP.md"
+( cd "$REPO" && bash scripts/lint-roadmap.sh --strict ) >/dev/null 2>&1 && pass "lint-roadmap: valid schema (Done when + task + Mode) → exit 0" || fail "lint-roadmap false-positived on a good roadmap"
+
+# strict schema checks (N4): duplicate heading, invalid Mode, no task each fail --strict
+printf '## Phase 1 — A\n- [ ] t\nDone when: x\nMode: loopable\n\n## Phase 1 — A\n- [ ] u\nDone when: y\nMode: loopable\n' > "$REPO/docs/ROADMAP.md"
+( cd "$REPO" && bash scripts/lint-roadmap.sh --strict ) >/dev/null 2>&1 && fail "lint-roadmap missed a duplicate heading" || pass "lint-roadmap: duplicate phase heading → --strict exit 1"
+printf '## Phase 1 — A\n- [ ] t\nDone when: x\nMode: banana\n' > "$REPO/docs/ROADMAP.md"
+( cd "$REPO" && bash scripts/lint-roadmap.sh --strict ) >/dev/null 2>&1 && fail "lint-roadmap missed an invalid Mode" || pass "lint-roadmap: invalid Mode value → --strict exit 1"
+printf '## Phase 1 — A\nDone when: x\nMode: loopable\n' > "$REPO/docs/ROADMAP.md"
+( cd "$REPO" && bash scripts/lint-roadmap.sh --strict ) >/dev/null 2>&1 && fail "lint-roadmap missed a task-less phase" || pass "lint-roadmap: phase with no task → --strict exit 1"
 mkrepo l2
 printf '## Phase 1 — A\n- [ ] t\nDone when: ok\n\n## Phase 2 — B\n- [ ] u\n' > "$REPO/docs/ROADMAP.md"   # phase 2 missing Done when
 ( cd "$REPO" && bash scripts/lint-roadmap.sh --strict ) >/dev/null 2>&1 && fail "lint-roadmap missed a phase with no Done when" || pass "lint-roadmap: missing Done when → --strict exit 1"

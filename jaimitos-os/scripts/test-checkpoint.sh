@@ -51,7 +51,17 @@ mkrepo t6; echo x>>"$REPO/seed.txt"; fire "$REPO" '{"stop_hook_active":true}'
 [ -z "$OUT" ] && [ "$CN" = 1 ] && ok "loop-guard (stop_hook_active) bails" || no "loop-guard" "OUT=$OUT CN=$CN"
 
 mkrepo t7a; printf 'k=AKIAIOSFODNN7EXAMPLE\n'>"$REPO/c.txt"; fire "$REPO" "$J"
-[ "$CN" = 1 ] && contains "$OUT" "SECRET GUARD" && ! contains "$OUT" checkpointed && [ -z "$(git -C "$REPO" diff --cached --name-only)" ] && ok "content secret: abort, index reset, no commit" || no "secret-content" "OUT=$OUT CN=$CN"
+[ "$CN" = 1 ] && contains "$OUT" "SECRET GUARD" && ! contains "$OUT" checkpointed && ! contains "$(git -C "$REPO" diff --cached --name-only)" c.txt && ok "content secret: abort, secret NOT staged, no commit" || no "secret-content" "OUT=$OUT CN=$CN"
+
+# N3 — a secret-abort must PRESERVE the user's curated pre-staged selection, not wipe the whole index.
+mkrepo t7b; echo clean>"$REPO/curated.txt"; git -C "$REPO" add curated.txt   # user stages a clean subset
+printf 'k=AKIAIOSFODNN7EXAMPLE\n'>"$REPO/leak.txt"                            # an unrelated untracked secret
+fire "$REPO" "$J"
+{ [ "$CN" = 1 ] && contains "$OUT" "SECRET GUARD" \
+  && contains "$(git -C "$REPO" diff --cached --name-only)" curated.txt \
+  && ! contains "$(git -C "$REPO" diff --cached --name-only)" leak.txt; } \
+  && ok "secret abort PRESERVES the pre-staged subset (curated.txt still staged, leak.txt not) — N3" \
+  || no "prestage-preserved" "STAGED=$(git -C "$REPO" diff --cached --name-only | tr '\n' ' ') OUT=$OUT"
 
 mkrepo t7c; echo o>"$REPO/s.pem"; git -C "$REPO" add -f s.pem; git -C "$REPO" commit -qm p
 echo m>>"$REPO/s.pem"; fire "$REPO" "$J"

@@ -82,17 +82,15 @@ bash .github/scripts/install-smoke.sh
 # Behavior tests — run from inside jaimitos-os/
 cd jaimitos-os
 bash scripts/doctor.sh                 # health check
-bash scripts/test-hooks.sh             # hook smoke tests (incl. secret-scan)
-bash scripts/test-high-stakes.sh       # high-stakes path matcher
-bash scripts/test-secret-scan.sh       # secret-scan filename + content regexes
-bash scripts/test-autopilot-gates.sh   # autopilot gate logic
+bash scripts/run-guard-tests.sh        # the FULL behavioral guard suite (all scripts/test-*.sh)
 ```
 
-CI (`.github/workflows/ci.yml`) runs `bash -n` + **`shellcheck`** + **`actionlint`** over all
-scaffold scripts/hooks/libs and the workflows, validates `settings.json`, runs the three
-behavioral guard tests (`test-high-stakes.sh`, `test-secret-scan.sh`, `test-autopilot-gates.sh`),
-and runs the install smoke test. **Run them locally before you push** anyway — especially for any
-change to hooks, the secret-scan, the high-stakes gate, or `autopilot.sh`.
+`run-guard-tests.sh` is the single source of truth: it runs every `scripts/test-*.sh` and has a
+drift guard so a newly-added guard test can't silently escape CI. CI (`.github/workflows/ci.yml`)
+runs `bash -n` + **`shellcheck`** + **`actionlint`** over all scaffold scripts/hooks/libs and the
+workflows, validates `settings.json`, runs the full guard suite via `run-guard-tests.sh`, and runs
+the install smoke test. **Run it locally before you push** — especially for any change to hooks, the
+secret-scan, the high-stakes gate, the roadmap parser, `tick.sh`, or `autopilot.sh`.
 
 ## Shell style
 

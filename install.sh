@@ -282,7 +282,20 @@ echo ""
 if [ -x "$TARGET/scripts/doctor.sh" ]; then
   if ( cd "$TARGET" && git rev-parse --is-inside-work-tree >/dev/null 2>&1 ); then
     echo "install: running doctor.sh ..."
-    ( cd "$TARGET" && bash scripts/doctor.sh ) || echo "install: doctor reported issues above — address them before an unattended run."
+    # Surface doctor's THREE-STATE result HONESTLY (audit 5.6): doctor exits 1 on blocking problems,
+    # or 0 (either "not yet configured" or "all good"). Print a distinct final banner so "install
+    # succeeded" (files copied) is never mistaken for "unattended-ready". We do NOT fail the install on
+    # doctor issues — a successful COPY is a different fact from a clean HEALTH check (e.g. a deliberate
+    # --allow-subdir install legitimately has doctor warnings); the banner carries the distinction.
+    ( cd "$TARGET" && bash scripts/doctor.sh ); DOCTOR_RC=$?
+    echo ""
+    if [ "$DOCTOR_RC" -ne 0 ]; then
+      echo "install: files installed, but doctor reported BLOCKING issues (above) — this project is NOT"
+      echo "install:    unattended-ready. Fix them and re-run 'bash scripts/doctor.sh' until it is clean."
+    else
+      echo "install: files installed. If doctor printed '! not yet configured' warnings above, the project"
+      echo "install:    is installed but NOT yet configured for unattended use — address them first."
+    fi
   else
     echo "install: complete. Skipping doctor because the target is not a git repo yet."
     echo "install:   run 'git init', then 'bash scripts/doctor.sh'."

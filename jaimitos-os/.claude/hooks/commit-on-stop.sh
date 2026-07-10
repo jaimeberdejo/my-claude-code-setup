@@ -38,6 +38,20 @@ fi
 # (porcelain is "XY <path>"); survives spaces & renames where awk '{print $2}' would mangle.
 CHANGED=$(git status --porcelain 2>/dev/null | cut -c4-)
 
+# Preserve the user's curated staging selection (finding N3): capture what was ALREADY staged before
+# we `git add -A`, so that if we abort (secret hit / missing scan lib) we can restore EXACTLY that set
+# instead of `git reset`-ing the whole index and destroying a subset the user staged by hand.
+# Newline-delimited; `IFS= read -r` keeps paths with spaces intact (a literal newline in a filename is
+# pathological and not supported — the file is simply left unstaged, never mis-staged).
+PRESTAGED=$(git diff --cached --name-only 2>/dev/null || true)
+restore_prestaged() {
+  git reset -q 2>/dev/null || true               # unstage the add -A
+  [ -n "$PRESTAGED" ] || return 0
+  printf '%s\n' "$PRESTAGED" | while IFS= read -r f; do
+    [ -n "$f" ] && git add -- "$f" 2>/dev/null || true
+  done
+}
+
 git add -A 2>/dev/null
 # Count the ACTUAL staged files (after add), not porcelain lines — git collapses an
 # untracked directory into one "?? dir/" line, which would under-report the count.
@@ -51,7 +65,7 @@ COUNT=$(git diff --cached --name-only --no-renames 2>/dev/null | grep -c .)
 # NOTE: this is not a full secret scanner; review diffs for novel secret formats.
 SCAN_LIB=".claude/lib/_secret-scan.sh"
 if [ ! -f "$SCAN_LIB" ]; then
-  git reset -q 2>/dev/null
+  restore_prestaged
   echo "⛔ SECRET GUARD — $SCAN_LIB missing; cannot scan. Auto-commit SKIPPED (fail-closed)."
   echo "   Restore the guard lib (re-run install.sh) or commit deliberately after reviewing."
   exit 0
@@ -60,7 +74,7 @@ fi
 . "$SCAN_LIB"
 FINDINGS=$(secret_scan_staged); SCAN_RC=$?
 if [ "$SCAN_RC" -ne 0 ]; then
-  git reset -q 2>/dev/null
+  restore_prestaged
   echo "⛔ SECRET GUARD — auto-commit ABORTED. Nothing was committed."
   printf '%s\n' "$FINDINGS"
   echo "   Handle manually: remove the file/line, add to .gitignore, or commit deliberately."

@@ -81,3 +81,20 @@ jobs:
           git config --global user.email ci@example.com
           git config --global user.name ci
           bash .github/scripts/install-smoke.sh
+
+  # Regression insurance for the bash 3.2 / BSD-userland target (macOS ships bash 3.2). The scaffold
+  # has deliberate BSD/GNU-portability history; this leg catches future drift. jq is preinstalled on
+  # the GitHub macOS runner; a claude-less PATH is fine (the guards stub or `command -v` it).
+  macos-checks:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash version (expect 3.2)
+        run: bash --version | head -1
+      - name: Shell syntax — every .sh
+        run: |
+          set -e
+          find . -path ./.git -prune -o -name '*.sh' -print | while IFS= read -r f; do bash -n "$f"; done
+      - name: Behavioral guard tests (full suite)
+        working-directory: jaimitos-os
+        run: bash scripts/run-guard-tests.sh
