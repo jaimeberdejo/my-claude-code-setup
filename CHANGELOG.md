@@ -6,6 +6,68 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **dbt test runner in the shared resolver.** `dbt_project.yml` + `dbt` on `PATH` → `dbt build`
+  (models **and** their tests, in dependency order — `dbt test` alone would grade a warehouse the
+  phase never rebuilt). Gated on manifest AND runner exactly like go/cargo/make/mvn/gradle, so an
+  absent `dbt` falls through to the loud `LEAN_TEST_CMD` fallback rather than emitting a command that
+  can't run. `tick.sh` is untouched. This was the audit's highest-value fix and its only *day-one,
+  phase-one* blocker: a dbt project matched no detector, so the tick gate recorded `passed:null` and
+  the first phase could never auto-tick. Sits after the pytest checks — `dbt init` scaffolds a
+  `tests/` dir, so a dbt repo that *also* has pytest installed still resolves to pytest; set
+  `LEAN_TEST_CMD="dbt build"` to override. (`_test-cmd.sh`, `scripts/test-test-cmd.sh`)
+- **`doctor.sh` lists active `high-stakes-ok:` content suppressions** (audit F2). The path allowlist
+  was already reported for auditability; the inline, **builder-forgeable** content marker was surfaced
+  nowhere, so a suppression could hide in plain sight. A line is listed (`path:line — reason`) only
+  when it both matches `HIGH_STAKES_CONTENT_RE` and carries a reasoned marker; both regexes are
+  sourced from `_high-stakes.sh` so they can't drift from the gate. Report-only — no gate behavior
+  changes, exit code untouched. (`doctor.sh`, `scripts/test-doctor.sh`)
+- **Docs drift guard for the shared-lib count** — `test-docs.sh` now binds every
+  "`<N>` shared/sourced lib(s)" mention in README/GUIDE to the real `.claude/lib/_*.sh` count,
+  mirroring the existing skill-count binding. Accepts digits *and* English number words, because the
+  mentions that rotted were spelled "three".
+
+### Changed
+- **Retired `explain-diff` and `ship-check`.** Claude Code's native `/code-review`,
+  `/security-review` and `/verify` supersede them and are maintained upstream. `ship-check`'s
+  scaffold-specific Step 3 ("check the paper trail" — STATE.md updated? ADR written?) is **preserved**,
+  folded into `scope-guard`, which fires at the same pre-commit moment. The pre-commit chain is now
+  `scope-guard → /code-review → /security-review` (or `/verify`). Skills: 18→16 total, 17→15 portable.
+- **Removed `/autopilot-parallel`** — the audit's "minimum safe cut": 392 lines (command + test), no
+  usage evidence, already labeled Advanced/experimental, and the only guardrail in the stack enforced
+  by nothing but the operator's judgment (human-asserted phase independence). The tick gate, `/phase`,
+  in-session `/autopilot` and headless `scripts/autopilot.sh` are untouched. `merge-conflicts` stays,
+  retargeted at worktree phase-branch integration generally.
+- **Dropped the stale `MultiEdit` tool name** from `disallowed-tools:` lists — it is not a current
+  built-in tool, so it declared a contract that never existed. (`scope-guard`, `skills/README.md`,
+  `CONTRIBUTING.md`. The `Write|Edit|MultiEdit` hook *matchers* in `settings.json` /
+  `format-on-edit.sh` are a defensive superset and stay.)
+- **Corrected "3 shared libs" → 4** and named `_eval-isolation.sh` (extracted in v2.5.0, never counted).
+  README.md ×3, GUIDE.md ×3.
+
+### Fixed — security & correctness (from the independent v2.6.0 multi-agent audit)
+- **`/wrap` now grades under evaluator isolation, and a grade can't be recorded over a dirty tree**
+  (audit G12). `record-grade.sh` stamped `run_id = HEAD` at *record* time, blind to the tree the
+  evaluator actually graded; headless closed this via `_eval-isolation.sh`, the manual path had no
+  isolation at all. `wrap.md` now mirrors `phase.md`: `eval_snapshot` before the evaluator
+  (fail-closed) and `eval_changed_files` after — if the grader wrote to the live checkout, the files
+  are named and the tick refuses. As the deterministic backstop (a markdown command can't enforce
+  itself), `record-grade.sh` is **fail-closed on a dirty tracked tree**. Untracked files are ignored
+  by design. Headless is unaffected: it already calls `record-grade` only after `eval_restore` proves
+  the tree clean. Residual: a commit landing between grade and record still binds a stale verdict —
+  closing that needs the evaluator to emit the HEAD it graded. **Tightens a gate; weakens none.**
+- **Documented the transient-secret blind spot** (audit F1). `secret_scan_diff` scans the *net*
+  `BASE..HEAD` diff, so a secret added in one commit and `git rm`'d in a later one *within the same
+  phase* nets to zero and is reported clean — while `--pr` still pushes the intermediate commit that
+  contains it. The opt-in backends already close it (`gitleaks`/`trufflehog` scan commit-by-commit,
+  fail-closed when absent); only the documentation was missing. Now in `SECURITY.md` beside the
+  prefix-matcher caveat and in `README.md`'s `--pr` notes, both recommending
+  `LEAN_SECRET_SCANNER=gitleaks` for any run that pushes. No code change.
+- **`auto` permission mode is a complement, not a replacement.** Stated in `SECURITY.md` and
+  `rules/high-stakes.md`: `auto` adds a useful in-session *semantic* second opinion, but it is ignored
+  for subagents and aborts under `-p`, so it can never be the headless mechanism. `HIGH_STAKES_RE` +
+  `tick.sh` remain the enforced gate.
+
 ### Fixed — CI / cross-platform test portability
 - **Master CI is green again.** The v2.6.0 guard suite had never actually run in CI: the shellcheck
   step failed first (a `lint-shell.sh` doc comment whose leading token `shellcheck` was misparsed as a
