@@ -29,7 +29,7 @@ scaffold-aware, not fully stack-neutral.
 | **design-twice** ◆ | engineering | structure a non-trivial module | Two genuinely different designs, trade-off comparison, a choice, and an ADR with the rejected alternative; the planner agent applies it to non-trivial phases |
 | **tdd** ◆ | engineering | build test-first | The red→green loop plus what makes tests worth keeping: pre-agreed seams (from SPEC/plan), anti-patterns (the same list the evaluator grades against), mocking rules. The executor's TDD manual |
 | **diagnose** ◆ | engineering | hit a hard bug / regression | Diagnosis discipline: build a tight red-capable feedback loop BEFORE hypothesizing (10 ordered ways), minimise, ranked falsifiable hypotheses, instrument, fix + regression test (3+ circular attempts instead? → `unstick`) |
-| **merge-conflicts** ◆ | engineering | a merge/rebase stops on conflicts | Resolves from both sides' intent (never inventing behavior), runs the project checks, finishes the merge; covers the /autopilot-parallel worktree-integration case |
+| **merge-conflicts** ◆ | engineering | a merge/rebase stops on conflicts | Resolves from both sides' intent (never inventing behavior), runs the project checks, finishes the merge; covers the worktree phase-branch integration case |
 | **teach-back** | ownership | finish a non-trivial phase | Claude explains what it built and quizzes you; gaps go to docs/STATE.md "Ownership gaps" |
 | **mapme** | ownership | made big structural changes | Refreshes docs/ARCHITECTURE.md from the actual code |
 | **quizme** | ownership | want to test understanding | Cold-opens a quiz on the codebase to measure how well you know it |
@@ -58,7 +58,7 @@ you. They are rewritten, not copied: Matt's originals are tracker-centric (GitHu
 `CONTEXT.md`, a work-queue subsystem of their own); these versions are docs-centric (`docs/SPEC.md`,
 `docs/ROADMAP.md`, `docs/decisions/` with the 4-line ADR format, `docs/GLOSSARY.md`) and wire
 into this scaffold's pipeline (executor↔tdd, planner↔design-twice, roadmap↔grill,
-autopilot-parallel↔merge-conflicts). Each adapted SKILL.md carries a one-line attribution
+worktree-integration↔merge-conflicts). Each adapted SKILL.md carries a one-line attribution
 comment; this paragraph is the full notice.
 
 ## Install

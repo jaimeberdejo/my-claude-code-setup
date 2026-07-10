@@ -29,7 +29,7 @@ fi
 if [ -z "$CHANGED" ]; then
   CHANGED=$(git show --name-only --pretty=format: HEAD 2>/dev/null)
 fi
-# A merge commit (e.g. /autopilot-parallel integrating a phase branch) shows an EMPTY diff
+# A merge commit (e.g. integrating a phase branch) shows an EMPTY diff
 # under `git show`'s default combined-diff format when there's no conflict resolution to
 # display — even though real work landed via the merged branch. Fall back to a diff against
 # the first parent so a merge-only turn doesn't silently skip both nudges below.

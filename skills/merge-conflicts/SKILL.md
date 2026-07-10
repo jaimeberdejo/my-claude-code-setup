@@ -1,6 +1,6 @@
 ---
 name: merge-conflicts
-description: Resolve an in-progress git merge/rebase conflict by understanding both intents, never by inventing behavior. Use when a merge or rebase stops on conflicts — "merge conflict", "resuelve el conflicto", "el merge falla", "rebase stopped on conflicts", or when integrating /autopilot-parallel worktree branches.
+description: Resolve an in-progress git merge/rebase conflict by understanding both intents, never by inventing behavior. Use when a merge or rebase stops on conflicts — "merge conflict", "resuelve el conflicto", "el merge falla", "rebase stopped on conflicts", or when integrating a phase branch built in a git worktree.
 ---
 
 # Merge conflicts
@@ -17,16 +17,16 @@ description: Resolve an in-progress git merge/rebase conflict by understanding b
 5. **Finish the merge/rebase.** Stage everything and commit; if rebasing, continue until all
    commits are rebased.
 
-## The `/autopilot-parallel` integration case
-Conflicts between worktree phase branches have two extra rules:
+## The worktree phase-branch integration case
+Merging a phase branch built in a git worktree (the default for `scripts/autopilot.sh`) back into
+your checkout has two extra rules:
 - **A `docs/STATE.md` conflict is expected and harmless** — every `/phase` run rewrites the same
   narrative line. Keep whichever sentence is still accurate (or note both); never revert a real
   code change over it. The machine-managed block between the `lean:auto` markers heals itself on
   the next tick.
-- **The human picks the resolution.** `/autopilot-parallel`'s integration step stops on conflict
-  and presents options — because a conflict between "independent" phases means the independence
-  assertion was wrong somewhere, and that judgment belongs to the user. Use steps 1–2 above to
-  explain *why* the hunks conflict and to build the 1–3 options presented; apply exactly what the
-  user chooses.
+- **The human picks the resolution.** Stop on the conflict and present options rather than choosing
+  for them: a conflict between phases that were expected to be disjoint means that expectation was
+  wrong somewhere, and that judgment belongs to the user. Use steps 1–2 above to explain *why* the
+  hunks conflict and to build the 1–3 options presented; apply exactly what the user chooses.
 
 <!-- Adapted from mattpocock/skills (MIT) — https://github.com/mattpocock/skills -->

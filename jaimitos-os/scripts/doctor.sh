@@ -109,7 +109,7 @@ echo "Agents, commands, rules:"
 for a in researcher planner executor evaluator; do
   [ -f ".claude/agents/$a.md" ] && ok ".claude/agents/$a.md" || bad "missing .claude/agents/$a.md"
 done
-for c in resume wrap phase autopilot autopilot-parallel models; do
+for c in resume wrap phase autopilot models; do
   [ -f ".claude/commands/$c.md" ] && ok ".claude/commands/$c.md" || bad "missing .claude/commands/$c.md"
 done
 [ -f .claude/rules/high-stakes.md ] && ok ".claude/rules/high-stakes.md" || bad "missing .claude/rules/high-stakes.md"

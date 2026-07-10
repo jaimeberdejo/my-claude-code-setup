@@ -100,8 +100,8 @@ prompt) only *asks* a model to comply.
   the manual `/wrap` path is weaker by design.** `scripts/autopilot.sh` re-derives the phase base
   in its own trusted shell and byte-integrity-checks every gate-control file, so a builder can
   neither forge `.claude/.phase-base` to shrink the scan window nor neuter the gate in its
-  worktree; `/wrap` (and `/autopilot-parallel`) trust the session-written base and on-disk gate
-  code and are human-supervised — run `/wrap` only from a clean working tree, and use headless
+  worktree; `/wrap` trusts the session-written base and on-disk gate
+  code and is human-supervised — run `/wrap` only from a clean working tree, and use headless
   autopilot (in the sandbox) for unattended operation. The full mechanism — trusted re-derivation,
   `TICK_BASE` ancestor validation, integrity checks, and their limits — is documented in
   [GUIDE.md Part 4, "Gate integrity & the scan window"](jaimitos-os/toolkit-docs/GUIDE.md), the

@@ -11,8 +11,8 @@ heading matches, STOP and ask which one; if ZERO headings match at all, STOP and
 such phase exists in docs/ROADMAP.md — never fall through to picking the first open phase
 instead. That phase must
 still have at least one unchecked `- [ ]` item, or STOP and report it's already done — do not
-silently fall through to another phase. This is for targeted and parallel work (see
-`/autopilot-parallel`); bare `/phase` (no argument) is unchanged.
+silently fall through to another phase. This is for targeted work — building a specific phase out
+of roadmap order; bare `/phase` (no argument) is unchanged.
 
 0. If NEXT_FINDINGS.md exists, READ IT FIRST. It contains the previous evaluator's
    reasons a phase was not done. Address those findings before selecting any new

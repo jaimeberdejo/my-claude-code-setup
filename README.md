@@ -62,7 +62,7 @@ jaimitos-claude-setup/
 │   ├── .github/workflows/jaimitos-os-ci.yml   # OPT-IN CI (install.sh --with-ci)
 │   └── .claude/
 │       ├── settings.json            # hooks → events + permissions.deny
-│       ├── commands/                # /resume /wrap /phase /autopilot /autopilot-parallel /models
+│       ├── commands/                # /resume /wrap /phase /autopilot /models
 │       ├── agents/                  # researcher, planner, executor, evaluator — one per /phase stage
 │       ├── rules/high-stakes.md     # path-scoped extra care
 │       └── hooks/                   # 7 deterministic shell hooks + 4 shared libs (_secret-scan, _high-stakes, _test-cmd, _eval-isolation)
@@ -169,7 +169,6 @@ You drive each arrow manually for stakes that warrant it, or hand the bracket to
 | `/resume` | Reads SPEC+ROADMAP+STATE, states the single next action, then waits. Orientation only. |
 | `/phase` | Builds one roadmap phase: research-if-needed → plan → TDD → evaluator self-check. **Does not tick the roadmap** (that's gated on an independent grade). |
 | `/autopilot N` | **Watchable** in-session loop: runs N phases in your terminal, grading each via the evaluator subagent. Accepts `N`, `3-5`, or `all`. |
-| `/autopilot-parallel "<heading>" ...` | Builds **named, user-asserted-independent** phases concurrently in isolated worktrees, then integrates and grades them one at a time through the same `tick.sh` gate. Never auto-detects independence — you name the phases. |
 | `/wrap` | Session close-out: update STATE, tick ROADMAP through the shared `scripts/tick.sh` gate (evaluator PASS + fresh green tests + clean secret scan + no high-stakes), append an ADR. Never flips checkboxes by hand. |
 | `/models` | Thin wrapper around `scripts/models.sh` — shows or sets which model each `/phase` stage (research/plan/execute/verify) uses, persisted per-project in that stage's agent frontmatter. `all=X` sets all four; `reset` restores shipped defaults. |
 
@@ -220,7 +219,7 @@ Eighteen skills — ◆ marks the seven adapted from [mattpocock/skills](https:/
 - **design-twice** ◆ — two genuinely different designs before non-trivial code, ADR records the loser
 - **tdd** ◆ — the red→green loop with pre-agreed seams and the evaluator's own anti-pattern list
 - **diagnose** ◆ — hard-bug discipline: a tight red-capable feedback loop before any hypothesis
-- **merge-conflicts** ◆ — resolve from both sides' intent; covers /autopilot-parallel integration
+- **merge-conflicts** ◆ — resolve from both sides' intent; runs the project checks, finishes the merge
 
 **Ownership (3):** **teach-back** (explain + quiz after a phase) · **mapme** (regenerate
 docs/ARCHITECTURE.md) · **quizme** (cold-open understanding check) — plus the
@@ -242,14 +241,6 @@ Three ways to run, in order of trust:
 | Watchable loop | `/autopilot N` (in-session) | a few phases you want to *see* run |
 | Headless loop | `bash scripts/autopilot.sh N [--no-worktree] [--pr] [--allow-dirty] [--dangerously-skip-permissions]` | long/overnight, low-stakes, reversible |
 | **Sandboxed headless (recommended for unattended)** | `bash sandbox/run-autopilot-sandboxed.sh N [--pr ...]` | the supported way to run truly unattended — builds a no-credentials container, mounts only the repo, passes only `ANTHROPIC_API_KEY`, runs the headless loop with `--dangerously-skip-permissions` inside |
-| Parallel watchable loop *(Advanced / experimental)* | `/autopilot-parallel "<heading>" ...` | phases you're **sure** don't interfere — see the caveat below |
-
-> **`/autopilot-parallel` is Advanced / experimental.** It builds named phases concurrently in
-> isolated worktrees, then integrates and grades them one at a time through the same `tick.sh` gate —
-> but it can't verify *logical* independence, so it makes you assert it (the literal phrase
-> `I assert these phases are independent`). Its guarantees are weaker than the headless script: no
-> per-child watchdog, no automatic retry. Reach for `/autopilot N` or the headless script unless you
-> specifically need concurrent builds of phases you're confident are disjoint.
 
 `scripts/autopilot.sh` accepts `N` (up to N), `N-M` (aim for N, cap M), or `all` (malformed
 counts are rejected, not ignored). **Worktree isolation is the default** — a bad run can't touch

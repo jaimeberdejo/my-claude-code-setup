@@ -18,8 +18,6 @@ assert_has    ".claude/commands/wrap.md"      "scripts/tick.sh"   "wrap.md route
 assert_has    ".claude/commands/wrap.md"      "may NOT flip"      "wrap.md forbids flipping checkboxes by hand"
 assert_absent ".claude/commands/wrap.md"      "deliberately"      "wrap.md has no '(or you, deliberately)' tick bypass"
 assert_has    ".claude/commands/autopilot.md" "scripts/tick.sh"   "/autopilot routes ticking through scripts/tick.sh"
-assert_has    ".claude/commands/autopilot-parallel.md" "scripts/tick.sh"   "/autopilot-parallel routes ticking through scripts/tick.sh"
-assert_absent ".claude/commands/autopilot-parallel.md" "flip"     "/autopilot-parallel does not claim it can flip checkboxes by hand"
 assert_has    "CLAUDE.md"                      "scripts/tick.sh"   "CLAUDE.md documents the single tick gate"
 assert_absent "CLAUDE.md"                      "the tick is not"  "CLAUDE.md no longer claims the in-session tick is ungated"
 assert_has    ".claude/commands/autopilot.md" "Check the next phase's \`Mode:\` line BEFORE building it" \
