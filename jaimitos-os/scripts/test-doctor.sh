@@ -174,5 +174,34 @@ grep -q "team repo detected" "$WORK/solo.out" \
   || pass "team: single-contributor repo does not warn"
 
 echo ""
+echo "Subagent frontmatter check (warn on hyphenated skill fields / malformed frontmatter; advisory)"
+echo ""
+# Clean control: a pristine scaffold's agents use camelCase fields → the OK line, no warn.
+mkscaffold "$WORK/fmok"
+( cd "$WORK/fmok" && bash scripts/doctor.sh > "$WORK/fmok.out" 2>&1 )
+grep -q "all subagent frontmatter is well-formed" "$WORK/fmok.out" \
+  && pass "fm: pristine agents pass the subagent-frontmatter check" \
+  || fail "fm: pristine agents did not pass the frontmatter check"
+# Hyphenated skill field in a subagent → warn (NOT a hard fail: doctor still exits 0 on an
+# otherwise-configured tree), and it names the offending key.
+mkscaffold "$WORK/fmhy"
+# Insert a hyphenated denylist into the evaluator's frontmatter (after line 1's ---).
+awk 'NR==1{print;print "disallowed-tools: Write";next}{print}' "$WORK/fmhy/.claude/agents/evaluator.md" > "$WORK/fmhy/.claude/agents/evaluator.md.tmp" \
+  && mv "$WORK/fmhy/.claude/agents/evaluator.md.tmp" "$WORK/fmhy/.claude/agents/evaluator.md"
+( cd "$WORK/fmhy" && bash scripts/doctor.sh > "$WORK/fmhy.out" 2>&1 )
+{ grep -qi "hyphenated SKILL field in SUBAGENT" "$WORK/fmhy.out" \
+  && grep -q "disallowed-tools" "$WORK/fmhy.out" \
+  && ! grep -q "all subagent frontmatter is well-formed" "$WORK/fmhy.out"; } \
+  && pass "fm: a hyphenated skill field in a subagent is warned and named" \
+  || fail "fm: hyphenated subagent field not warned"
+# Malformed frontmatter (no closing ---) → warn about empty metadata.
+mkscaffold "$WORK/fmbad"
+printf -- '---\nname: researcher\ntools: Read\n(no closing delimiter)\n' > "$WORK/fmbad/.claude/agents/researcher.md"
+( cd "$WORK/fmbad" && bash scripts/doctor.sh > "$WORK/fmbad.out" 2>&1 )
+grep -qi "no well-formed --- frontmatter" "$WORK/fmbad.out" \
+  && pass "fm: malformed agent frontmatter (no closing ---) is warned" \
+  || fail "fm: malformed agent frontmatter not warned"
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All doctor --fix tests passed."; exit 0
 else echo "$FAILS doctor test(s) FAILED."; tail -n 15 "$WORK/out" 2>/dev/null; exit 1; fi

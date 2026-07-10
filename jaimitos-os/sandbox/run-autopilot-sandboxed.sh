@@ -89,4 +89,5 @@ echo "sandbox: repo → /work (only mount) · credential → ANTHROPIC_API_KEY (
 exec docker run --rm -i $TTY_FLAG \
   -v "$PWD":/work -w /work \
   -e ANTHROPIC_API_KEY \
+  -e JAIMITOS_SANDBOXED=1 \
   "$IMAGE" scripts/autopilot.sh "$@" --dangerously-skip-permissions

@@ -5,6 +5,25 @@ assert independence (no shared files, no logical dependency) before running this
 during integration is the closest thing to an after-the-fact safety check, not a guarantee. If you
 are not confident two phases are independent, use `/autopilot N` or `/phase` one at a time instead.
 
+> **⚠ ADVANCED / EXPERIMENTAL.** This command trades safety for concurrency and asks you to vouch
+> for something nothing here can verify — logical independence between phases. Prefer `/autopilot N`
+> or the headless script unless you specifically need concurrent builds of phases you're sure don't
+> interact. Its guarantees are WEAKER than headless `scripts/autopilot.sh`:
+> - **No child watchdog** — a wedged parallel build has no per-child wall-clock timeout / AGENT_STOP
+>   tree-kill (that lives in `scripts/autopilot.sh` only).
+> - **No automatic retry** — one build attempt per phase; a post-merge NEEDS_WORK is a manual follow-up.
+> - **Evaluator-change isolation now available.** At integration each phase's evaluator runs
+>   in-session; wrap that grade with `.claude/lib/_eval-isolation.sh` (`eval_snapshot` before, then
+>   `eval_changed_files` after — the same detect-and-refuse `/phase` uses) so a grader that writes to
+>   the tree is caught here too. If it reports the grader touched files, do NOT tick that phase.
+
+**Required assertion (no `--yes`, on purpose).** Before building anything, you MUST have the human
+state, verbatim, the phrase: `I assert these phases are independent`. A `--yes` gets typed
+reflexively; a full sentence does not. If that exact phrase was not given for THIS invocation, STOP
+and ask for it — do not proceed on an implied or prior approval. (Advisory, like the rest of this
+command doc — it is enforced by you reading this file, the same trust model as every other
+`/command`; say so honestly rather than implying a mechanical gate.)
+
 > **⚠ Caution — prefer `/autopilot N` or headless `scripts/autopilot.sh` until this command inherits
 > child containment.** The v2.4.0 per-child watchdog (a wall-clock timeout plus a parent-polled
 > `AGENT_STOP` that kills the whole child tree) lives in `scripts/autopilot.sh`. This command's

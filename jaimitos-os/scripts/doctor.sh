@@ -114,6 +114,34 @@ done
 [ -f .claude/rules/high-stakes.md ] && ok ".claude/rules/high-stakes.md" || bad "missing .claude/rules/high-stakes.md"
 echo ""
 
+echo "Subagent frontmatter (subagents use DIFFERENT frontmatter than skills):"
+# Subagent files (.claude/agents/*.md) use camelCase fields — tools / disallowedTools /
+# permissionMode. The hyphenated forms (allowed-tools / disallowed-tools / permission-mode) are
+# SKILL/command fields; in a SUBAGENT they are, at best, silently-ignored no-ops — so a restriction
+# you THINK you set (a denylist, a permission mode) simply doesn't exist. That's a silent latent bug,
+# so we WARN (not `bad`): the official docs confirm the camelCase names but do NOT state whether the
+# CLI rejects a hyphenated key or ignores it, so we don't hard-fail on an unknown. A frontmatter that
+# doesn't even delimit (missing opening/closing `---`) loads with EMPTY metadata — same silent-bug
+# class — also a warn. Preventive: kept even when everything is clean, so a regression is caught early.
+FM_CLEAN=1
+for af in .claude/agents/*.md; do
+  [ -f "$af" ] || continue
+  # Frontmatter must open on line 1 with --- and have a closing --- (else metadata is dropped).
+  if [ "$(sed -n '1p' "$af")" != "---" ] || [ "$(grep -c '^---$' "$af" 2>/dev/null)" -lt 2 ]; then
+    warn "$af has no well-formed --- frontmatter block (loads with EMPTY metadata — its tools/model are ignored)"
+    FM_CLEAN=0; continue
+  fi
+  # Scan ONLY the frontmatter region (line 1's --- to the next ---) for skill-style hyphenated keys.
+  fm_hyphen=$(awk 'NR==1&&$0=="---"{i=1;next} i&&$0=="---"{exit} i&&/^(allowed-tools|disallowed-tools|permission-mode):/{print}' "$af")
+  if [ -n "$fm_hyphen" ]; then
+    warn "$af uses a hyphenated SKILL field in SUBAGENT frontmatter (use camelCase: tools / disallowedTools / permissionMode) — hyphenated keys are ignored here, so the restriction doesn't apply:"
+    printf '%s\n' "$fm_hyphen" | sed 's/^/      /'
+    FM_CLEAN=0
+  fi
+done
+[ "$FM_CLEAN" -eq 1 ] && ok "all subagent frontmatter is well-formed and uses subagent (camelCase) fields"
+echo ""
+
 echo "Skills (.claude/skills/ — a dropped/renamed skill silently loses that workflow):"
 # Checked only when .claude/skills/ exists: an installed project always has it (install.sh populates
 # it), so an incomplete set here means a real drop/rename regression → hard fail. A bare scaffold with

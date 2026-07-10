@@ -588,7 +588,12 @@ The in-session `/autopilot` and `/phase`+`/wrap` modes still lack the headless s
 and throwaway-worktree isolation — **you (the watcher) are that guardrail.** Use the headless script
 for unattended runs; use the in-session modes when you want to watch.
 
-### What `/autopilot-parallel` trades for parallelism
+### What `/autopilot-parallel` trades for parallelism — Advanced / experimental
+> **⚠ Advanced / experimental.** Prefer `/autopilot N` or headless `scripts/autopilot.sh` unless you
+> specifically need concurrent builds of phases you're sure are disjoint. This command requires you
+> to state the literal phrase `I assert these phases are independent` before it builds — a `--yes`
+> gets typed reflexively; a sentence does not.
+
 `/autopilot-parallel "<heading>" ...` builds several NAMED phases concurrently, each in its own
 git worktree (via the Agent tool's `isolation: "worktree"`), then integrates them back **one at a
 time** — grading and ticking stay strictly sequential, because `tick.sh` is a single-writer gate
@@ -600,9 +605,11 @@ over one `docs/ROADMAP.md`. What changes versus plain `/autopilot`:
 - **Loss: no automatic retry.** Each phase gets exactly one build attempt. A NEEDS_WORK after
   merging is not retried automatically the way `/phase`'s internal TDD loop or `/autopilot`'s
   findings-loop retries — it's handed back for a manual `/phase` + `/wrap` follow-up.
-- **Loss: still no evaluator-change discard or process isolation.** The evaluator runs in-session
-  via the Task tool at integration time, same trust model as `/autopilot` — not
-  `scripts/autopilot.sh`'s separate-process, change-discarding evaluator.
+- **Evaluator-change isolation is now available (v2.6.0), use it.** Each phase's grade still runs
+  in-session at integration, but you can wrap it with `.claude/lib/_eval-isolation.sh`
+  (`eval_snapshot` before, `eval_changed_files` after — the detect-and-refuse `/phase` uses), so a
+  grader that writes to the tree is caught here too. It's still not `scripts/autopilot.sh`'s
+  separate-process isolation, but the change-discard guarantee no longer has to be absent here.
 - **A genuinely new, unenforced trust assumption: human-asserted independence.** Nothing in this
   stack mechanically verifies that two phases don't interfere. A clean `git merge` is *not* proof
   of independence — two phases can touch entirely disjoint files and still be logically dependent

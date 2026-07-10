@@ -239,9 +239,16 @@ Three ways to run, in order of trust:
 |---|---|---|
 | Manual | `/phase`, you review each diff | medium stakes, your daily default |
 | Watchable loop | `/autopilot N` (in-session) | a few phases you want to *see* run |
-| Parallel watchable loop | `/autopilot-parallel "<heading>" ...` (in-session, per-phase worktree isolation) | a handful of phases you're confident don't interfere with each other |
 | Headless loop | `bash scripts/autopilot.sh N [--no-worktree] [--pr] [--allow-dirty] [--dangerously-skip-permissions]` | long/overnight, low-stakes, reversible |
 | **Sandboxed headless (recommended for unattended)** | `bash sandbox/run-autopilot-sandboxed.sh N [--pr ...]` | the supported way to run truly unattended — builds a no-credentials container, mounts only the repo, passes only `ANTHROPIC_API_KEY`, runs the headless loop with `--dangerously-skip-permissions` inside |
+| Parallel watchable loop *(Advanced / experimental)* | `/autopilot-parallel "<heading>" ...` | phases you're **sure** don't interfere — see the caveat below |
+
+> **`/autopilot-parallel` is Advanced / experimental.** It builds named phases concurrently in
+> isolated worktrees, then integrates and grades them one at a time through the same `tick.sh` gate —
+> but it can't verify *logical* independence, so it makes you assert it (the literal phrase
+> `I assert these phases are independent`). Its guarantees are weaker than the headless script: no
+> per-child watchdog, no automatic retry. Reach for `/autopilot N` or the headless script unless you
+> specifically need concurrent builds of phases you're confident are disjoint.
 
 `scripts/autopilot.sh` accepts `N` (up to N), `N-M` (aim for N, cap M), or `all` (malformed
 counts are rejected, not ignored). **Worktree isolation is the default** — a bad run can't touch

@@ -93,16 +93,20 @@ printf 'SECRET=1\n' > .env; printf '.env\n' > .gitignore
 rm -f "$WORK/docker-args"
 rc=$(run_wrapper 3 --pr)
 ARGS="$(cat "$WORK/docker-args" 2>/dev/null || true)"
+# The container receives exactly ONE volume (the repo) and TWO -e vars: the ANTHROPIC_API_KEY
+# credential and the non-secret JAIMITOS_SANDBOXED=1 marker (so autopilot's in-container run knows
+# it IS sandboxed). No other mount, no other credential.
 { [ "$rc" -eq 0 ] && [ -n "$ARGS" ] \
   && printf '%s\n' "$ARGS" | grep -qx -- "$REPO:/work" \
   && [ "$(printf '%s\n' "$ARGS" | grep -cx -- '-v')" -eq 1 ] \
   && printf '%s\n' "$ARGS" | grep -qx -- "ANTHROPIC_API_KEY" \
-  && [ "$(printf '%s\n' "$ARGS" | grep -cx -- '-e')" -eq 1 ] \
+  && printf '%s\n' "$ARGS" | grep -qx -- "JAIMITOS_SANDBOXED=1" \
+  && [ "$(printf '%s\n' "$ARGS" | grep -cx -- '-e')" -eq 2 ] \
   && printf '%s\n' "$ARGS" | grep -qx -- "scripts/autopilot.sh" \
   && printf '%s\n' "$ARGS" | grep -qx -- "3" \
   && printf '%s\n' "$ARGS" | grep -qx -- "--pr" \
   && [ "$(printf '%s\n' "$ARGS" | tail -1)" = "--dangerously-skip-permissions" ]; } \
-  && pass "clean repo: docker run mounts ONLY the repo, passes ONLY ANTHROPIC_API_KEY, forwards args, appends --dangerously-skip-permissions last" \
+  && pass "clean repo: docker run mounts ONLY the repo, passes ONLY ANTHROPIC_API_KEY + the JAIMITOS_SANDBOXED marker, forwards args, appends --dangerously-skip-permissions last" \
   || fail "docker run invocation malformed (rc=$rc): $ARGS"
 
 # 4b — missing image → docker build invoked against sandbox/Dockerfile.autopilot before run.
@@ -141,6 +145,64 @@ else
     && pass "Dockerfile structural checks (slim base, non-root USER, /work, no credential paths) — hadolint not installed" \
     || fail "Dockerfile structural checks failed"
 fi
+
+# ============================================================================================
+# autopilot.sh's OWN sandbox fail-closed brake (v2.6.0): --dangerously-skip-permissions on a bare
+# host (no sandbox signal) is REFUSED unless --i-understand-no-sandbox is passed. The container
+# indicator paths are overridable (JAIMITOS_DOCKERENV_PATH / JAIMITOS_CGROUP_PATH) so a test can
+# simulate a bare host even when the test runner is itself a container.
+# ============================================================================================
+AUTOPILOT="$SCAFFOLD/scripts/autopilot.sh"
+
+# mkautorepo: minimal scaffold sufficient for autopilot.sh to reach (or refuse before) the sandbox
+# gate. cds the shell into it. No real `claude` — a run that gets past the gate simply fails the
+# builder, which is fine: the gate's refusal/banner is emitted before the loop.
+mkautorepo() {
+  R="$WORK/$1"; rm -rf "$R"; mkdir -p "$R/.claude/lib" "$R/scripts" "$R/docs"
+  cp "$AUTOPILOT" "$R/scripts/autopilot.sh"
+  cp "$SCAFFOLD/.claude/lib/_eval-isolation.sh" "$R/.claude/lib/"     # required (fail-closed) lib
+  printf '{"hooks":{}}\n' > "$R/.claude/settings.json"
+  printf '# Roadmap\n## Phase 1 — x\n- [ ] a\nDone when: x\nMode: loopable\n' > "$R/docs/ROADMAP.md"
+  printf '# State\n' > "$R/docs/STATE.md"
+  ( cd "$R" && git init -q && git config user.email t@t.t && git config user.name t \
+      && git add -A >/dev/null 2>&1 && git commit -qm init >/dev/null 2>&1 )
+  cd "$R" || exit 1
+}
+# No-signal env: forge nothing, just point the container indicators at nonexistent paths.
+NOSIG=(JAIMITOS_SANDBOXED= JAIMITOS_DOCKERENV_PATH=/nonexistent-xyz JAIMITOS_CGROUP_PATH=/nonexistent-xyz)
+
+echo ""
+# 8 — refusal: bypass + no sandbox signal + no ack → exit 1, names the wrapper, before any loop.
+mkautorepo a8
+env "${NOSIG[@]}" bash scripts/autopilot.sh 1 --no-worktree --allow-dirty --dangerously-skip-permissions >"$WORK/out" 2>&1; rc=$?
+{ [ "$rc" -eq 1 ] && grep -qi "NO sandbox signal" "$WORK/out" && grep -q "run-autopilot-sandboxed.sh" "$WORK/out"; } \
+  && pass "autopilot refuses --dangerously-skip-permissions with no sandbox signal (exit 1, points at the wrapper)" \
+  || fail "autopilot did not refuse the no-sandbox bypass (rc=$rc)"
+
+# 9 — override: same, plus --i-understand-no-sandbox → does NOT refuse; prints the banner and
+# records it in autopilot.log. (It then fails the builder — no real claude — which is expected.)
+mkautorepo a9
+env "${NOSIG[@]}" bash scripts/autopilot.sh 1 --no-worktree --allow-dirty --dangerously-skip-permissions --i-understand-no-sandbox >"$WORK/out" 2>&1
+{ ! grep -qi "NO sandbox signal detected" "$WORK/out" \
+  && grep -q "OUTSIDE ANY DETECTED SANDBOX" "$WORK/out" \
+  && grep -q "OUTSIDE ANY DETECTED SANDBOX" autopilot.log 2>/dev/null; } \
+  && pass "--i-understand-no-sandbox proceeds past the gate, prints the banner, and records it in autopilot.log" \
+  || fail "--i-understand-no-sandbox banner/logging broken"
+
+# 10 — signal present (JAIMITOS_SANDBOXED=1) → no refusal, no bare-host banner (it IS 'sandboxed').
+mkautorepo a10
+env JAIMITOS_SANDBOXED=1 JAIMITOS_DOCKERENV_PATH=/nonexistent-xyz JAIMITOS_CGROUP_PATH=/nonexistent-xyz \
+  bash scripts/autopilot.sh 1 --no-worktree --allow-dirty --dangerously-skip-permissions >"$WORK/out" 2>&1
+{ ! grep -qi "NO sandbox signal" "$WORK/out" && ! grep -q "OUTSIDE ANY DETECTED SANDBOX" "$WORK/out"; } \
+  && pass "JAIMITOS_SANDBOXED=1 → no refusal and no bare-host banner (the wrapper's normal path)" \
+  || fail "sandbox-signal path wrongly refused or bannered"
+
+# 11 — the brake is inert without --dangerously-skip-permissions (no behavior change there).
+mkautorepo a11
+env "${NOSIG[@]}" bash scripts/autopilot.sh 1 --no-worktree --allow-dirty >"$WORK/out" 2>&1
+grep -qi "NO sandbox signal" "$WORK/out" \
+  && fail "sandbox gate wrongly fired without --dangerously-skip-permissions" \
+  || pass "sandbox gate is inert when --dangerously-skip-permissions is absent"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All sandbox tests passed."; exit 0

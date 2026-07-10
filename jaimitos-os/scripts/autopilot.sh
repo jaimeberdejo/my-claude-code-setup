@@ -7,7 +7,7 @@
 # State persists in docs/ + git between iterations.
 #
 # Usage:
-#   bash scripts/autopilot.sh [COUNT] [--allow-dirty] [--no-worktree] [--pr] [--dangerously-skip-permissions]
+#   bash scripts/autopilot.sh [COUNT] [--allow-dirty] [--no-worktree] [--pr] [--dangerously-skip-permissions] [--i-understand-no-sandbox]
 #     COUNT can be:
 #       N         run up to N phases   (e.g. 5  → "only 5")
 #       N-M       run up to M phases, aiming for at least N  (e.g. 3-5 → "from 3 to 5")
@@ -26,7 +26,13 @@
 #                      a TTY, `--permission-mode acceptEdits` (the default) CANNOT approve
 #                      writes to `.claude/` or Bash commands like the test suite — a truly
 #                      headless run needs this to complete even one phase. Use ONLY in a
-#                      sandboxed container with NO production credentials.
+#                      sandboxed container with NO production credentials. If no sandbox SIGNAL
+#                      is detected (JAIMITOS_SANDBOXED env, /.dockerenv, or a container cgroup),
+#                      this flag is REFUSED unless --i-understand-no-sandbox is also passed.
+#                      The supported path is the wrapper: sandbox/run-autopilot-sandboxed.sh.
+#     --i-understand-no-sandbox   run --dangerously-skip-permissions on a bare host anyway (no
+#                      sandbox signal). Prints an unmistakable banner and records it in
+#                      autopilot.log. A reminder, not a boundary — the signals are forgeable.
 # Stop:    touch AGENT_STOP
 # Steer:   echo "use Decimal not float for money" > STEER.md
 #
@@ -46,6 +52,7 @@ USE_WORKTREE=1         # isolation is the DEFAULT; --no-worktree opts out
 OPEN_PR=0
 HS_BLOCKED=0          # set to 1 if a high-stakes phase tripped the gate (never push it)
 SKIP_PERMISSIONS=0    # --dangerously-skip-permissions opts INTO bypassing all permission checks
+ACK_NO_SANDBOX=0      # --i-understand-no-sandbox: run bypass OUTSIDE a sandbox anyway (explicit)
 RUN_ABORTED=0         # set to 1 if the child watchdog aborted the run (timeout / AGENT_STOP / lock / cleanup) — never push
 CURRENT_CHILD_PID=""  # pid of the in-flight builder/evaluator child, so traps + cleanup can reach it
 CURRENT_CHILD_PGID="" # its process-group id when we started it as a group leader (whole-subtree kill)
@@ -58,7 +65,7 @@ POLL_INTERVAL="${AUTOPILOT_POLL_INTERVAL:-5}"
 for arg in "$@"; do
   case "$arg" in
     -h|--help)
-      echo "usage: autopilot.sh [COUNT] [--allow-dirty] [--no-worktree] [--pr] [--dangerously-skip-permissions]"
+      echo "usage: autopilot.sh [COUNT] [--allow-dirty] [--no-worktree] [--pr] [--dangerously-skip-permissions] [--i-understand-no-sandbox]"
       echo "  COUNT: N | N-M | all|max (default 15). Headless loop: builds each roadmap phase in a fresh"
       echo "  process, grades it with an independent evaluator, and ticks via scripts/tick.sh. See the"
       echo "  header of this script for the full flag reference and safety notes."
@@ -68,6 +75,7 @@ for arg in "$@"; do
     --no-worktree) USE_WORKTREE=0 ; continue ;;            # opt out of isolation
     --pr)          OPEN_PR=1 ; continue ;;
     --dangerously-skip-permissions) SKIP_PERMISSIONS=1 ; continue ;;
+    --i-understand-no-sandbox) ACK_NO_SANDBOX=1 ; continue ;;  # run bypass outside a sandbox anyway
     all|max|ALL|MAX) MAX_ITER=50; UNBOUNDED=1 ; continue ;;  # advance as much as you can
   esac
   # Numeric COUNT forms — anchored validation; reject malformed loudly (no silent ignore).
@@ -77,7 +85,7 @@ for arg in "$@"; do
     MIN_TARGET="${arg%%-*}"; MAX_ITER="${arg##*-}"
   else
     echo "autopilot: unrecognized argument '$arg'." >&2
-    echo "  expected: N | N-M | all | --no-worktree | --worktree | --allow-dirty | --pr | --dangerously-skip-permissions" >&2
+    echo "  expected: N | N-M | all | --no-worktree | --worktree | --allow-dirty | --pr | --dangerously-skip-permissions | --i-understand-no-sandbox" >&2
     exit 1
   fi
 done
@@ -102,6 +110,33 @@ if [ "$SKIP_PERMISSIONS" -eq 1 ]; then
   CLAUDE_PERM_FLAGS=(--dangerously-skip-permissions)
 else
   CLAUDE_PERM_FLAGS=(--permission-mode acceptEdits)
+fi
+
+# Sandbox SIGNALS (a reminder, NOT a security boundary — an env var is forgeable and /.dockerenv
+# can be faked; treat these as hints, not proof). Computed once here so the refusal below runs
+# BEFORE any side effect (lock, worktree), and the banner further down can reuse it. Two
+# independent hints: the wrapper's marker (JAIMITOS_SANDBOXED=1, exported by
+# sandbox/run-autopilot-sandboxed.sh) and a container indicator (Docker's /.dockerenv or a
+# container reference in pid 1's cgroup).
+# The two container-indicator PATHS are overridable ONLY to make this refusal testable (a test
+# points them at nonexistent files to simulate a bare host). This is not a bypass: overriding them
+# can only REMOVE a signal (→ stricter, more likely to refuse), never forge one more easily than the
+# already-acknowledged forgeable JAIMITOS_SANDBOXED env var.
+SANDBOX_SIGNAL=0
+if [ "$SKIP_PERMISSIONS" -eq 1 ]; then
+  [ "${JAIMITOS_SANDBOXED:-0}" = "1" ] && SANDBOX_SIGNAL=1
+  [ -f "${JAIMITOS_DOCKERENV_PATH:-/.dockerenv}" ] && SANDBOX_SIGNAL=1
+  grep -qaE '(docker|containerd|kubepods|lxc)' "${JAIMITOS_CGROUP_PATH:-/proc/1/cgroup}" 2>/dev/null && SANDBOX_SIGNAL=1
+  # Bypass on a bare host with no sandbox signal → refuse unless the human explicitly accepts it.
+  # Refuse HERE, before the lock/worktree, so a refusal leaves nothing behind.
+  if [ "$SANDBOX_SIGNAL" -eq 0 ] && [ "$ACK_NO_SANDBOX" -eq 0 ]; then
+    echo "autopilot: ⛔ --dangerously-skip-permissions with NO sandbox signal detected." >&2
+    echo "autopilot:   This removes the permission boundary on a bare host: the builder/evaluator can run" >&2
+    echo "autopilot:   anything your OS user can, against any credentials on this machine. Run it in the" >&2
+    echo "autopilot:   shipped sandbox:  bash sandbox/run-autopilot-sandboxed.sh $*" >&2
+    echo "autopilot:   or, if you truly accept the risk on THIS host, re-run with --i-understand-no-sandbox." >&2
+    exit 1
+  fi
 fi
 
 # Default the test gate ON for headless runs so each turn writes test-results.json
@@ -235,6 +270,17 @@ if [ "$SKIP_PERMISSIONS" -eq 1 ]; then
   echo "autopilot:   name). Use this ONLY in a sandboxed container with NO production"
   echo "autopilot:   credentials — it removes the interactive permission boundary entirely for"
   echo "autopilot:   the duration of this run, on both the builder and the evaluator process."
+  # SANDBOX_SIGNAL was computed at parse time; if we got here with none, the human passed
+  # --i-understand-no-sandbox. Record an unmistakable banner in the run log for any post-mortem.
+  if [ "$SANDBOX_SIGNAL" -eq 0 ]; then
+    {
+      echo "=============================================================================="
+      echo "autopilot: ⚠⚠ RUNNING BYPASS OUTSIDE ANY DETECTED SANDBOX (--i-understand-no-sandbox)."
+      echo "autopilot:   No JAIMITOS_SANDBOXED / container signal was found. If this host has production"
+      echo "autopilot:   credentials, a bad run can reach them. This banner is recorded in autopilot.log."
+      echo "=============================================================================="
+    } | tee -a autopilot.log >&2
+  fi
 fi
 
 # Baseline commit for the push-gate: secrets must not enter the remote even though

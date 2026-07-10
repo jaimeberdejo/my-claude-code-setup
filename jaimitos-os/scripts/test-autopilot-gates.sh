@@ -268,12 +268,14 @@ unset CLAUDE_ARGS_LOG
   || fail "default permission flags wrong (see $WORK/args13.log)"
 
 # 14 — --dangerously-skip-permissions: both invocations switch to it instead, and the
-# script warns loudly that it's on.
+# script warns loudly that it's on. Run WITH a sandbox signal (JAIMITOS_SANDBOXED=1) — the real
+# scenario for this flag is inside the wrapper's container; the no-signal REFUSAL is covered
+# separately in test-sandbox.sh.
 mkrepo r14; rm -f "$WORK/args14.log"
-BUILDER_MODE=clean EVAL_MODE=pass CLAUDE_ARGS_LOG="$WORK/args14.log"
-export BUILDER_MODE EVAL_MODE CLAUDE_ARGS_LOG
+BUILDER_MODE=clean EVAL_MODE=pass CLAUDE_ARGS_LOG="$WORK/args14.log" JAIMITOS_SANDBOXED=1
+export BUILDER_MODE EVAL_MODE CLAUDE_ARGS_LOG JAIMITOS_SANDBOXED
 run "$REPO" 1 --no-worktree --allow-dirty --dangerously-skip-permissions >/dev/null
-unset CLAUDE_ARGS_LOG
+unset CLAUDE_ARGS_LOG JAIMITOS_SANDBOXED
 { grep -q -- "--dangerously-skip-permissions" "$WORK/args14.log" \
   && ! grep -q -- "--permission-mode acceptEdits" "$WORK/args14.log"; } \
   && pass "--dangerously-skip-permissions: both builder and evaluator switch to it" \
