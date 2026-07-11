@@ -89,8 +89,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Bash version (expect 3.2)
-        run: bash --version | head -1
+      - name: Bash version (ASSERT 3.2 — the leg is worthless if a newer Homebrew bash shadows it)
+        run: |
+          bash --version | head -1
+          bash --version | head -1 | grep -q 'version 3\.2' \
+            || { echo "::error::macOS leg expected bash 3.2 but got the above — bash-3.2 portability coverage is NOT running (a newer bash is on PATH)"; exit 1; }
       - name: Shell syntax — every .sh
         run: |
           set -e

@@ -8,6 +8,65 @@ uses [Semantic Versioning](https://semver.org/).
 
 _Nothing yet._
 
+## [2.9.0] — 2026-07-11
+
+Trust-hardening release acting on the 2026-07-11 re-audit (`docs/dev/audits/`). It closes the
+reproduced trust gaps that remained after v2.8.x — all in manual mode, release tooling, and
+edge-case loss-of-work paths — without adding a database, service, workflow engine, or crypto.
+`VERSION` → `2.9.0`. Not tagged (tag at release with approval; run `scripts/release-check.sh
+--prepare` before tagging and `--released` after).
+
+### Fixed — security & correctness (from the 2026-07-11 re-audit)
+- **F1 — headless autopilot no longer publishes an incomplete run.** The `--pr` push/PR path was
+  reached on ANY non-high-stakes, non-aborted exit — including ordinary failures (builder crashed,
+  empty/garbled verdict, thrash cap, tick REFUSED) and partial multi-phase runs — so a branch
+  carrying ungraded per-task builder commits could be pushed. A single authoritative `RUN_RESULT`
+  (default "failed"; "success" only after a fully-successful iteration or the roadmap-complete
+  break) now gates publication; every other outcome keeps the branch local. Ordinary failures and
+  watchdog aborts exit non-zero; intentional high-stakes/supervised stops exit 0.
+- **F2 — the sandbox never discards produced work.** The exporter keyed only on `autopilot/*`
+  branches, and forwarded args were unchecked; a forwarded `--no-worktree` made the loop commit on
+  the clone's current branch, so the exporter found "nothing to import" and deleted the clone. Now
+  `--no-worktree` (and other export-breaking options) are rejected before any container starts, and
+  the wrapper inventories ALL produced work (new/advanced `autopilot/*` branches, commits on a
+  non-autopilot branch or detached HEAD, dirty/untracked files) — deleting the clone only when
+  everything was exported, otherwise preserving it with exact recovery.
+- **F3 / audit I1 — the manual phase anchor is base- and test-command-bound.** A builder could
+  advance the tracked `.claude/.phase-anchor` base to a later ancestor and commit it, narrowing the
+  secret/high-stakes scan window; `tick.sh` still ticked. It now requires the anchor's `base=` to
+  equal the parent of the commit that last set the anchor (the naive narrowing fails closed, exit
+  3). The anchor also records the authorized test-command identity (`test_source` + `test_command`
+  + `test_config_sha`), and manual `tick.sh` requires anchor == evidence == current command, so a
+  mid-phase `.claude/test-command` swap is refused. `authorized_test_cmd` additionally rejects
+  bounded wrapped/degenerate no-ops (`sh -c true`, bare `echo`/`printf`, …). Honest residual: a
+  builder running arbitrary git can still `reset`+re-anchor — headless (orchestrator `TICK_BASE`)
+  remains the trust-equivalent path.
+- **F4 — ROADMAP/STATE completion is rollback-safe.** `tick.sh` mutated ROADMAP then STATE; a STATE
+  failure left ROADMAP ticked with STATE stale. A minimal two-file transition now generates both
+  updated files, validates them (open-count dropped, STATE markers, targets writable), backs up the
+  originals, applies both, and rolls back on any failure — printing `✓ ticked` only after both
+  succeed and cross-file verification passes. If rollback itself fails, the `*.tick-bak` backups are
+  preserved with exact recovery. Leftover artifacts from an interrupted run are detected and refused.
+  A read-only STATE is now caught before any mutation (no half-apply). (The full `doctor --state`
+  cross-file repair engine stays deferred.)
+- **F5 — the checkpoint hook restores the EXACT pre-hook index.** It saved only staged filenames and
+  re-`git add`-ed them on a secret abort, losing partial (hunk-)staging, staged renames, mode
+  changes, and intent-to-add. It now snapshots the raw `.git/index` (`git rev-parse --git-path
+  index`, so linked worktrees resolve) and restores it byte-for-byte.
+- **F6 — evaluator isolation covers configured fixture dirs.** The `--directory` collapse hid a new
+  file created inside a pre-existing ignored dir. A project lists such dirs in project-owned
+  `.claude/eval-fixture-paths` (empty by default; never dependency trees); files under them are
+  hashed so a created/modified fixture is detected (interactive) or removed / STOP'd (headless).
+- **F7 — release-check verifies tag IDENTITY, not just existence.** New `--prepare` (VERSION ↔
+  newest CHANGELOG, `[Unreleased]` empty, clean tree) and `--released` (annotated `v$VERSION` tag
+  pointing at a commit whose VERSION + newest CHANGELOG both equal `$VERSION`; reports master↔tag;
+  verifies the remote tag when origin exists). A tag on the wrong commit now fails.
+
+### Changed
+- macOS CI leg now ASSERTS bash 3.2 (was informational) so the portability coverage can't silently
+  move to a newer Homebrew bash. Permission-injection guard tests are root-guarded (root bypasses
+  `chmod`). New `.claude/eval-fixture-paths` is project-owned (sync/install never overwrite it).
+
 ## [2.8.1] — 2026-07-11
 
 Patch release. Corrects a dangling command reference introduced in 2.8.0. No safety-path behavior
