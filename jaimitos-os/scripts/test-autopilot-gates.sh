@@ -88,6 +88,24 @@ if [ "${BUILDER_MODE:-highstakes}" = "blocked" ]; then
   echo "blocked: this session's permission mode requires approval — retries aren't going through"
   exit 0
 fi
+# crash: builder process exits non-zero (an ORDINARY failure — the most direct F1 case). It does
+# NOT write phase markers or commit; the run must be treated as failed and NEVER published.
+if [ "${BUILDER_MODE:-}" = "crash" ]; then
+  echo "builder-stub: crashing (exit 3)"
+  exit 3
+fi
+# crash_on_2: succeed like `clean` on iteration 1 (phase ticks), then crash on iteration 2 — a PARTIAL
+# run. Counter lives OUTSIDE the repo (BUILDER_COUNT_FILE) so it survives the loop's commits.
+if [ "${BUILDER_MODE:-}" = "crash_on_2" ]; then
+  cf="${BUILDER_COUNT_FILE:-/tmp/lean_builder_count}"
+  n=$(cat "$cf" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$cf"
+  if [ "$n" -ge 2 ]; then echo "builder-stub: crash on iteration $n (exit 3)"; exit 3; fi
+  git rev-parse HEAD > .claude/.phase-base 2>/dev/null
+  printf '## Phase 1 — Work\n' > .claude/.phase-ready
+  mkdir -p src; echo "def widget(): return $n" > src/widget.py
+  git add -A 2>/dev/null; git commit -qm "build $n" 2>/dev/null
+  exit 0
+fi
 git rev-parse HEAD > .claude/.phase-base 2>/dev/null
 printf '## Phase 1 — Work\n' > .claude/.phase-ready
 case "${BUILDER_MODE:-highstakes}" in
@@ -168,6 +186,13 @@ run() { local r="$1"; shift; ( cd "$r" && PATH="$BIN:$PATH" LEAN_TEST_CMD=true A
 # run_bg <repo> <flags...>: start autopilot BACKGROUNDED with the stubs (exported env inherited); sets
 # AP_PID to autopilot's own bash pid (via exec) so the caller can signal it, then `wait "$AP_PID"`.
 run_bg() { local r="$1"; shift; ( cd "$r" && exec env PATH="$BIN:$PATH" LEAN_TEST_CMD=true AUTOPILOT_POLL_INTERVAL="${AUTOPILOT_POLL_INTERVAL:-0.2}" bash scripts/autopilot.sh "$@" ) >"$WORK/out" 2>&1 & AP_PID=$!; }
+# run_red <repo> <flags...>: like run() but with a RED test suite (LEAN_TEST_CMD=false) so
+# test-evidence records passed:false → tick.sh refuses (rc 1). Used to prove a tick-refused run
+# never publishes (F1). Output captured OUTSIDE the repo.
+run_red() { local r="$1"; shift; ( cd "$r" && PATH="$BIN:$PATH" LEAN_TEST_CMD=false AUTOPILOT_POLL_INTERVAL="${AUTOPILOT_POLL_INTERVAL:-0.2}" bash scripts/autopilot.sh "$@" ) >"$WORK/out" 2>&1; echo $?; }
+# published: 0 iff the finish block ENTERED the push/PR path ("pushing … opening a PR" prints before
+# the git push attempt, so it's observable even without a reachable remote) OR the fake gh ran.
+published() { grep -qE "pushing .* and opening a PR|STUB-GH-INVOKED" "$WORK/out"; }
 ticked()   { ! grep -q '\- \[ \] do the work' "$1/docs/ROADMAP.md"; }   # 0 if ticked
 # 0 if the pid recorded in <file> is gone (killed/reaped). Fail-closed: an empty file reads as alive.
 pid_dead() { local p; p=$(cat "$1" 2>/dev/null || echo ""); [ -n "$p" ] && ! kill -0 "$p" 2>/dev/null; }
@@ -211,11 +236,15 @@ grep -q "tick: .* ticked" "$WORK/out" && pass "clean PASS routes through scripts
 ticked "$REPO" && pass "clean PASS ticks the roadmap" || fail "clean PASS did not tick"
 contains "$(logof "$REPO")" "passed independent grade" && pass "clean PASS commits the phase" || fail "clean PASS did not commit"
 
-# 7 — a secret in the builder's commits + --pr → push gate blocks, exit 1, no gh.
+# 7 — a secret in the builder's commits → tick.sh's own phase-diff secret scan REFUSES the phase, so
+# the run FAILS and (F1) the finish gate never reaches the push path: no publish, exit non-zero, not
+# ticked. (Pre-F1 this was caught by the finish push-gate running on a failed run — the very bug F1
+# closes; that push-gate now remains a defense-in-depth backstop on the SUCCESS path only.)
 mkrepo r7; BUILDER_MODE=secret EVAL_MODE=pass; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --pr)
-grep -qE "commit range contains a secret|NOT pushing" "$WORK/out" && pass "push gate catches secret in range" || fail "push gate missed secret"
-grep -q "STUB-GH-INVOKED" "$WORK/out" && fail "gh invoked despite secret" || pass "no gh / no push on secret range"
-[ "$rc" = 1 ] && pass "secret push-gate exits non-zero" || fail "secret push-gate exit was $rc (want 1)"
+grep -qi "secret" "$WORK/out" && pass "secret in the phase diff is flagged (tick refuses)" || fail "secret not flagged"
+published && fail "secret run PUBLISHED (regression)" || pass "no gh / no push on a secret run"
+[ "$rc" != 0 ] && pass "secret run exits non-zero (rc=$rc)" || fail "secret run exit was $rc (want non-zero)"
+ticked "$REPO" && fail "secret run ticked" || pass "secret run not ticked"
 
 # 8 — NEEDS_WORK never ticks, writes NEXT_FINDINGS.md, and repeated NEEDS_WORK hits the thrash cap.
 mkrepo r8; BUILDER_MODE=clean EVAL_MODE=needs_work; export BUILDER_MODE EVAL_MODE; run "$REPO" 3 --no-worktree --allow-dirty >/dev/null
@@ -480,6 +509,58 @@ unset CLAUDE_ARGS_LOG
 { [ ! -f "$WORK/args30.log" ] || ! grep -q -- '-p /phase' "$WORK/args30.log"; } \
   && pass "missing-Mode next phase → builder never invoked (fail-closed)" || fail "builder RAN on a Mode-less phase (I4)"
 ticked "$REPO" && fail "Mode-less phase was ticked" || pass "Mode-less phase left unticked"
+
+echo ""
+echo "F1 — publication fails closed: a branch is pushed/PR'd ONLY when the COMPLETE requested run"
+echo "succeeded. Every incomplete/failed/blocked outcome keeps the branch local (no push, no PR)."; echo ""
+# Before this fix, ordinary failure breaks (builder non-zero, empty/garbled verdict, thrash cap,
+# tick-refused) left RUN_ABORTED=0/HS_BLOCKED=0, so the finish `--pr` path was reached and the
+# branch (with ungraded per-task builder commits) was pushed. These must FAIL on pre-fix code.
+
+# 31 — builder crashes (exit non-zero) + --pr → no publish, run exits non-zero, phase not ticked.
+mkrepo r31; BUILDER_MODE=crash EVAL_MODE=pass; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --pr)
+published && fail "F1: crash builder + --pr PUBLISHED (regression)" || pass "F1: crash builder → no push/PR"
+[ "$rc" != 0 ] && pass "F1: crash builder → run exits non-zero (rc=$rc)" || fail "F1: crash builder exited 0 (want non-zero)"
+ticked "$REPO" && fail "F1: crash builder ticked" || pass "F1: crash builder → not ticked"
+
+# 32 — empty evaluator verdict + --pr → the built (ungraded) commit must NOT be published.
+mkrepo r32; BUILDER_MODE=clean EVAL_MODE=empty; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --pr)
+published && fail "F1: empty verdict + --pr PUBLISHED an ungraded commit (regression)" || pass "F1: empty verdict → no push/PR"
+[ "$rc" != 0 ] && pass "F1: empty verdict → exits non-zero (rc=$rc)" || fail "F1: empty verdict exited 0"
+ticked "$REPO" && fail "F1: empty verdict ticked" || pass "F1: empty verdict → not ticked"
+
+# 33 — repeated NEEDS_WORK hits the thrash cap + --pr → no publish.
+mkrepo r33; BUILDER_MODE=clean EVAL_MODE=needs_work; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 3 --pr)
+published && fail "F1: thrash cap + --pr PUBLISHED (regression)" || pass "F1: thrash cap → no push/PR"
+[ "$rc" != 0 ] && pass "F1: thrash cap → exits non-zero (rc=$rc)" || fail "F1: thrash cap exited 0"
+
+# 34 — tick REFUSES (red tests: passed:false) + --pr → no publish.
+mkrepo r34; BUILDER_MODE=clean EVAL_MODE=pass; export BUILDER_MODE EVAL_MODE; rc=$(run_red "$REPO" 1 --pr)
+published && fail "F1: tick-refused (red) + --pr PUBLISHED (regression)" || pass "F1: tick-refused → no push/PR"
+[ "$rc" != 0 ] && pass "F1: tick-refused → exits non-zero (rc=$rc)" || fail "F1: tick-refused exited 0"
+ticked "$REPO" && fail "F1: tick-refused ticked" || pass "F1: tick-refused → not ticked"
+
+# 35 — PARTIAL run: phase 1 ticks, phase 2 crashes + --pr → even the ticked phase 1 is NOT published
+# (the COMPLETE requested run did not succeed). Proves the "whole run" semantics, not "any progress".
+mkrepo r35; rm -f "$WORK/bc35"
+printf '## Phase 1 — Work\n\n- [ ] do the work\nDone when: it works\nMode: loopable\n\n## Phase 2 — More\n\n- [ ] do more\nDone when: more\nMode: loopable\n' > "$REPO/docs/ROADMAP.md"
+( cd "$REPO" && git add -A && git commit -q -m 'two phases' )
+BUILDER_MODE=crash_on_2 EVAL_MODE=pass BUILDER_COUNT_FILE="$WORK/bc35"; export BUILDER_MODE EVAL_MODE BUILDER_COUNT_FILE
+rc=$(run "$REPO" 2 --pr); unset BUILDER_COUNT_FILE
+# The tick lands on the worktree branch (--pr implies a worktree), so confirm progress via the log.
+grep -q "✓ ticked" "$WORK/out" && pass "F1 partial: phase 1 did tick (progress was real)" || fail "F1 partial: phase 1 never ticked (test setup)"
+published && fail "F1 partial: PUBLISHED despite phase 2 crashing (regression)" || pass "F1 partial: incomplete run → no push/PR"
+[ "$rc" != 0 ] && pass "F1 partial: incomplete run exits non-zero (rc=$rc)" || fail "F1 partial: exited 0"
+
+# 36 — POSITIVE: a COMPLETE, fully-green run + --pr DOES push and open a PR exactly once. A bare
+# `origin` remote makes the real `git push` succeed so the fake `gh` actually runs (observable).
+mkrepo r36; git init --bare -q "$WORK/r36-remote.git"
+( cd "$REPO" && git remote add origin "$WORK/r36-remote.git" )
+BUILDER_MODE=clean EVAL_MODE=pass; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --pr)
+grep -q "✓ ticked" "$WORK/out" && pass "F1 positive: clean run ticks the phase" || fail "F1 positive: clean run did not tick"
+published && pass "F1 positive: complete run + --pr publishes" || fail "F1 positive: complete run did NOT publish"
+[ "$(grep -c 'STUB-GH-INVOKED' "$WORK/out")" = 1 ] && pass "F1 positive: gh pr create invoked exactly once" || fail "F1 positive: gh not invoked exactly once ($(grep -c 'STUB-GH-INVOKED' "$WORK/out"))"
+[ "$rc" = 0 ] && pass "F1 positive: successful publish exits 0" || fail "F1 positive: exit was $rc (want 0)"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All autopilot gate tests passed."; exit 0

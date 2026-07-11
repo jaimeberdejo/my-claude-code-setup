@@ -54,6 +54,8 @@ HS_BLOCKED=0          # set to 1 if a high-stakes phase tripped the gate (never 
 SKIP_PERMISSIONS=0    # --dangerously-skip-permissions opts INTO bypassing all permission checks
 ACK_NO_SANDBOX=0      # --i-understand-no-sandbox: run bypass OUTSIDE a sandbox anyway (explicit)
 RUN_ABORTED=0         # set to 1 if the child watchdog aborted the run (timeout / AGENT_STOP / lock / cleanup) — never push
+RUN_RESULT="failed"   # F1: the SINGLE authoritative publication decision. Defaults NON-publishable; only a
+                      # COMPLETE, fully-successful requested run flips it to "success". Push/PR requires it.
 CURRENT_CHILD_PID=""  # pid of the in-flight builder/evaluator child, so traps + cleanup can reach it
 CURRENT_CHILD_PGID="" # its process-group id when we started it as a group leader (whole-subtree kill)
 # Per-child wall-clock cap (default 20 min) + watchdog poll cadence. The child runs BACKGROUNDED and
@@ -465,11 +467,16 @@ EVAL_OUT=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/autopilot-eval.$$")
 echo "autopilot: log → $AUTOPILOT_LOG   (working dir: $PWD)"
 
 for i in $(seq 1 "$MAX_ITER"); do
-  # Kill-switch: present in the worktree working dir OR the operator's original checkout.
+  # F1: each iteration starts pessimistic. A run publishes only if it ENDS on a fully-successful
+  # iteration (tick rc 0 + commit) or the roadmap-complete break below — ANY failure/abort/block
+  # break leaves RUN_RESULT "failed", and the finish gate refuses to push it.
+  RUN_RESULT="failed"
+  # Kill-switch: present in the worktree working dir OR the operator's original checkout. A user
+  # AGENT_STOP is an interruption, not a completed run — RUN_RESULT stays "failed" → never published.
   if [ -f AGENT_STOP ] || [ -f "$ORIG_ROOT/AGENT_STOP" ]; then
     echo "autopilot: AGENT_STOP present — stopping at iteration $i."; break
   fi
-  grep -qE "^[[:space:]]*- \[ \] " docs/ROADMAP.md 2>/dev/null || { echo "autopilot: roadmap complete. Done."; break; }
+  grep -qE "^[[:space:]]*- \[ \] " docs/ROADMAP.md 2>/dev/null || { echo "autopilot: roadmap complete. Done."; RUN_RESULT="success"; break; }
 
   # STEER mirror: operators write STEER.md in their ORIGINAL checkout, but the loop
   # runs in the worktree. Move it in so the builder (which reads ./STEER.md) sees it.
@@ -683,6 +690,7 @@ for i in $(seq 1 "$MAX_ITER"); do
           git add -A 2>/dev/null
           git commit -m "autopilot: phase passed independent grade (iteration $i)" >/dev/null 2>&1 || true
           SAME_PHASE_FAILS=0; PREV_OPEN_SIGNATURE=""
+          RUN_RESULT="success"   # F1: this iteration fully succeeded (built → graded PASS → ticked → committed).
           ;;
         3)
           HS_BLOCKED=1   # high-stakes: finish block must NOT push this branch, even with --pr
@@ -703,24 +711,41 @@ for i in $(seq 1 "$MAX_ITER"); do
 done
 
 # ----------------------------- finish / PR -----------------------------
+# F1 — ONE authoritative publication gate. A branch is pushed / PR'd ONLY on a complete, fully-
+# successful run (RUN_RESULT=success). Every other outcome keeps the branch LOCAL. Ordinary failures
+# and watchdog aborts exit non-zero so a caller can tell the run did not complete; an intentional
+# supervised/high-stakes stop exits 0 (it is a correct refusal, not an error).
+FINAL_RC=0
 if [ "$HS_BLOCKED" -eq 1 ]; then
-  # A high-stakes phase tripped the gate. The builder's per-task commits are already
-  # in this branch, but high-stakes work is human-on-the-loop: it is NEVER auto-pushed,
-  # even with --pr. Leave the branch local for supervised review.
+  # A high-stakes / supervised phase tripped the gate. The builder's per-task commits are already
+  # in this branch, but high-stakes work is human-on-the-loop: it is NEVER auto-pushed, even with
+  # --pr. Leave the branch local for supervised review. Intentional stop → exit 0.
   echo "autopilot: high-stakes phase reached — branch $BRANCH stays LOCAL for supervised review (not pushed)." | tee -a autopilot.log
   if [ "$USE_WORKTREE" -eq 1 ]; then
     echo "autopilot: review it in $PWD, then merge or 'git worktree remove' when finished."
   fi
 elif [ "$RUN_ABORTED" -eq 1 ]; then
   # The child watchdog aborted the run (timeout / AGENT_STOP / lock-lost / cleanup-failed). A wedged
-  # or killed child leaves an unverified tree — fail closed: never push, even with --pr.
+  # or killed child leaves an unverified tree — fail closed: never push, even with --pr. Exit non-zero.
   echo "autopilot: run aborted by the child watchdog — branch ${BRANCH:-<current>} stays LOCAL, NOT pushed (even with --pr)." | tee -a autopilot.log
   if [ "$USE_WORKTREE" -eq 1 ]; then
     echo "autopilot: review it in $PWD, then merge or 'git worktree remove' when finished."
   fi
+  FINAL_RC=1
+elif [ "$RUN_RESULT" != "success" ]; then
+  # F1: an ordinary failure or INCOMPLETE run (builder crashed, ungraded/empty/garbled verdict, thrash
+  # cap, tick REFUSED, a supervised NEXT phase, AGENT_STOP boundary, or the roadmap never fully cleared).
+  # The branch may hold ungraded per-task builder commits — NEVER publish it. Keep it local, exit non-zero.
+  echo "autopilot: ⛔ run did NOT complete successfully (result: $RUN_RESULT) — branch ${BRANCH:-<current>} stays LOCAL, NOT pushed (even with --pr)." | tee -a autopilot.log
+  if [ "$USE_WORKTREE" -eq 1 ]; then
+    echo "autopilot: review it in $PWD, then merge or 'git worktree remove' when finished."
+  fi
+  FINAL_RC=1
 elif [ "$USE_WORKTREE" -eq 1 ] && [ "$OPEN_PR" -eq 1 ]; then
-  # Push-gate: the builder's per-task commits never passed through the Stop-hook
-  # secret guard, so scan the WHOLE range before anything reaches the remote.
+  # Reached ONLY on a fully-successful run. Push-gate: the builder's per-task commits never passed
+  # through the Stop-hook secret guard, so scan the WHOLE range (across every phase) before anything
+  # reaches the remote — a defense-in-depth backstop even though each phase's tick already scanned its
+  # own range.
   if type -t secret_scan_diff >/dev/null 2>&1; then
     PUSH_FINDINGS=$(secret_scan_diff "${START_REF:-HEAD~1}..HEAD"); PUSH_RC=$?
     if [ "$PUSH_RC" -ne 0 ]; then
@@ -741,3 +766,4 @@ elif [ "$USE_WORKTREE" -eq 1 ]; then
 fi
 
 echo "autopilot: finished."
+exit "$FINAL_RC"
