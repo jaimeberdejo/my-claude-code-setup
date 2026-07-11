@@ -72,6 +72,60 @@ printf '{"passed":null,"run_id":"%s"}\n' "$HEAD" > "$REPO/.claude/.tick-evidence
   && pass "tick derives the manual floor from the TRACKED anchor and prints the judged range (H1)" \
   || fail "tick did not use the anchor / print the range (trc=$trc): $(tail -2 "$WORK/out")"
 
+# 6 (F3a) — the anchor records the authorized test-command IDENTITY (source + config sha), so tick can
+# bind the graded command to the phase start.
+mkrepo t6; printf 'pytest -q\n' > "$REPO/.claude/test-command"; ( cd "$REPO" && git add -A && git commit -q -m 'add test-command' )
+sp "$REPO" >/dev/null
+{ grep -q '^test_source=file:.claude/test-command' "$REPO/.claude/.phase-anchor" \
+  && grep -q '^test_command=pytest -q' "$REPO/.claude/.phase-anchor" \
+  && grep -qE '^test_config_sha=[0-9a-f]{16,}' "$REPO/.claude/.phase-anchor"; } \
+  && pass "anchor records test_source + test_command + test_config_sha (F3a binding)" \
+  || fail "anchor missing test-command identity fields"
+
+# 7 (F3b / audit I1) — advancing the anchor's base= to a LATER ancestor + committing it must be REFUSED
+# by tick (exit 3), not silently ticked with a narrowed scan window. Pre-fix this TICKED (rc 0) and hid
+# the earlier secret commit; the parent-check (anchor base must equal the anchor-setting commit's
+# parent) closes the reproduced narrowing.
+mkrepo t7; sp "$REPO" >/dev/null
+( cd "$REPO" && printf 'AWS = AKIAIOSFODNN7EXAMPLE\n' > secret.py && git add -A && git commit -q -m 'C1 secret' )
+C1=$(git -C "$REPO" rev-parse HEAD)
+( cd "$REPO" && echo hi > b.txt && git add -A && git commit -q -m 'C2 benign' )
+( cd "$REPO" && sed -i.bak "s/^base=.*/base=$C1/" .claude/.phase-anchor && rm -f .claude/.phase-anchor.bak \
+    && git add .claude/.phase-anchor && git commit -q -m 'advance anchor (attack)' )
+HEAD=$(git -C "$REPO" rev-parse HEAD)
+printf 'run_id=%s\nverdict=PASS\nno_tests_ok=1\n' "$HEAD" > "$REPO/.claude/.phase-grade"
+printf '{"passed":null,"run_id":"%s"}\n' "$HEAD" > "$REPO/.claude/.tick-evidence.json"
+( cd "$REPO" && bash scripts/tick.sh "## Phase 1 — Work" ) >"$WORK/out" 2>&1; trc=$?
+{ [ "$trc" = 3 ] && grep -qi 'does not match the commit that set it' "$WORK/out"; } \
+  && pass "F3b/I1: advancing the anchor base (narrowing) is REFUSED (exit 3), not ticked" \
+  || fail "narrowing NOT refused (trc=$trc): $(tail -2 "$WORK/out")"
+
+# 8 (F3a / H2) — a builder that swaps .claude/test-command mid-phase for a weaker command and generates
+# green evidence with it is REFUSED: the anchor bound the phase-start command; tick requires the graded
+# + current command to match it.
+mkrepo t8; printf 'pytest -q\n' > "$REPO/.claude/test-command"; ( cd "$REPO" && git add -A && git commit -q -m 'add test-command' )
+sp "$REPO" >/dev/null
+( cd "$REPO" && printf 'pytest tests/trivial.py\n' > .claude/test-command && echo work > app.py && git add -A && git commit -q -m 'work + weaken tests' )
+HEAD=$(git -C "$REPO" rev-parse HEAD)
+printf 'run_id=%s\nverdict=PASS\nno_tests_ok=0\n' "$HEAD" > "$REPO/.claude/.phase-grade"
+printf '{"passed":true,"command":"pytest tests/trivial.py","run_id":"%s"}\n' "$HEAD" > "$REPO/.claude/.tick-evidence.json"
+( cd "$REPO" && bash scripts/tick.sh "## Phase 1 — Work" ) >"$WORK/out" 2>&1; trc=$?
+{ [ "$trc" != 0 ] && grep -qi 'differs from the phase-start authorized command' "$WORK/out"; } \
+  && pass "F3a/H2: mid-phase test-command swap → tick refuses (graded command != phase-start command)" \
+  || fail "test-command swap NOT caught (trc=$trc): $(tail -2 "$WORK/out")"
+
+# 9 (F3a) — the honest, matching case still ticks: same command at start and grade → NO false refusal.
+mkrepo t9; printf 'pytest -q\n' > "$REPO/.claude/test-command"; ( cd "$REPO" && git add -A && git commit -q -m 'add test-command' )
+sp "$REPO" >/dev/null
+( cd "$REPO" && echo work > app.py && git add -A && git commit -q -m work )
+HEAD=$(git -C "$REPO" rev-parse HEAD)
+printf 'run_id=%s\nverdict=PASS\nno_tests_ok=0\n' "$HEAD" > "$REPO/.claude/.phase-grade"
+printf '{"passed":true,"command":"pytest -q","run_id":"%s"}\n' "$HEAD" > "$REPO/.claude/.tick-evidence.json"
+( cd "$REPO" && bash scripts/tick.sh "## Phase 1 — Work" ) >"$WORK/out" 2>&1; trc=$?
+{ [ "$trc" = 0 ] && grep -q 'ticked' "$WORK/out"; } \
+  && pass "F3a: unchanged test command start→grade → ticks normally (no false refusal)" \
+  || fail "matching command wrongly refused (trc=$trc): $(tail -2 "$WORK/out")"
+
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All start-phase tests passed."; exit 0
 else echo "$FAILS start-phase test(s) FAILED."; echo "--- last output ---"; tail -8 "$WORK/out" 2>/dev/null; exit 1; fi

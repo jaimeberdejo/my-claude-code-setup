@@ -85,18 +85,27 @@ if [ -f "$ANCHOR" ] && git ls-files --error-unmatch "$ANCHOR" >/dev/null 2>&1; t
   fi
 fi
 
-# Author the anchor from the CURRENT clean HEAD (its parent IS the recorded base).
-TEST_CMD=""
-if command -v authorized_test_cmd >/dev/null 2>&1; then TEST_CMD=$(authorized_test_cmd 2>/dev/null || true); fi
+# Author the anchor from the CURRENT clean HEAD (its parent IS the recorded base). Also bind the
+# authorized test-command IDENTITY (source + literal + config sha) so tick.sh can prove the graded
+# command did not change mid-phase (finding F3/M3).
+TEST_CMD=""; TEST_SRC="none"; TEST_SHA=""
+if command -v authorized_test_cmd >/dev/null 2>&1; then
+  TEST_CMD=$(authorized_test_cmd 2>/dev/null || true)
+  TEST_SRC=$(authorized_test_cmd_source 2>/dev/null || echo none)
+  TEST_SHA=$(authorized_test_cmd_config_sha 2>/dev/null || true)
+fi
 STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 mkdir -p .claude
 {
   echo "# .claude/.phase-anchor — TRUSTED phase-start anchor (tracked; authored by scripts/start-phase.sh)."
-  echo "# tick.sh derives the manual scan floor from 'base=' below. Do NOT hand-edit mid-phase — every"
-  echo "# change is a visible commit in the judged range (that is the point: tamper-evident, not silent)."
+  echo "# tick.sh derives the manual scan floor from 'base=' below AND binds the authorized test command"
+  echo "# identity. Do NOT hand-edit mid-phase — every change is a visible commit in the judged range, and"
+  echo "# tick refuses if the anchor's own base does not match the commit that set it (tamper-evident + refused)."
   echo "heading=$HEADING"
   echo "base=$HEAD"
+  echo "test_source=$TEST_SRC"
   echo "test_command=$TEST_CMD"
+  echo "test_config_sha=$TEST_SHA"
   echo "anchored_at=$STAMP"
 } > "$ANCHOR"
 

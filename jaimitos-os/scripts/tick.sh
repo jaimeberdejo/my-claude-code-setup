@@ -217,11 +217,13 @@ esac
 # (finding H1). The TICK_BASE path is safe because the orchestrator derives the base OUTSIDE the
 # builder; the manual .phase-base path is human-reviewed, not builder-proof, until scripts/start-phase.sh
 # anchors it (planned). Do NOT read this comment as "a forged file cannot narrow the scan" — it can.
+ANCHOR_USED=0
 if [ -n "${TICK_BASE+set}" ]; then
   BASE="$TICK_BASE"
   BASE_SRC="TICK_BASE env (orchestrator-trusted)"
   [ -n "$BASE" ] || refuse "TICK_BASE is set but empty — a trusted base must be a real commit (fail-closed)"
 elif [ -f .claude/.phase-anchor ]; then
+  ANCHOR_USED=1
   # Manual mode, NEW mechanism (H1): prefer the TRACKED, tamper-evident anchor authored by
   # scripts/start-phase.sh over the gitignored, builder-writable .phase-base. The anchor's base lives
   # in committed git history, so advancing it is a VISIBLE commit inside the judged range — not the
@@ -247,13 +249,72 @@ RANGE="${BASE_SHA}..HEAD"
 # Print the exact judged range (C-C): in manual mode the human on the loop is the trusted reviewer, so
 # make the window they are vouching for explicit rather than implicit.
 echo "tick: judging range ${BASE_SHA:0:12}..${HEAD:0:12}  (base source: $BASE_SRC)" >&2
+
+# --- anchor base-integrity (F3b / audit I1) ---
+# The strict-ancestor guard above stops an EMPTY or unrelated base, but not NARROWING: a builder could
+# advance the anchor's base= to a later ancestor and commit it (visible, but the old code still ticked).
+# The anchor is authored by scripts/start-phase.sh as a commit whose PARENT is exactly the recorded
+# base. So require: the commit that LAST modified .claude/.phase-anchor has base= as its first parent.
+# A naive base rewrite ('base=<later ancestor>' + an ordinary commit) then fails closed — that commit's
+# parent is the previous HEAD, not the new base. HONEST residual (documented): a builder that runs
+# arbitrary git can still `reset --hard` + re-anchor to reconstruct history; no local, crypto-free check
+# prevents that — which is exactly why HEADLESS derives the base OUTSIDE the builder (TICK_BASE). This
+# raises the manual bar from tamper-EVIDENT to "the naive narrowing is REFUSED".
+if [ "$ANCHOR_USED" = 1 ]; then
+  a_commit=$(git log -1 --format=%H -- .claude/.phase-anchor 2>/dev/null || true)
+  if [ -n "$a_commit" ]; then
+    a_parent=$(git rev-parse --verify --quiet "${a_commit}^" 2>/dev/null || true)
+    if [ -n "$a_parent" ] && [ "$a_parent" != "$BASE_SHA" ]; then
+      echo "tick: ⛔ .claude/.phase-anchor base does not match the commit that set it —" >&2
+      echo "tick:    anchor base=${BASE_SHA:0:12} but the anchor-setting commit ${a_commit:0:12} has parent ${a_parent:0:12}." >&2
+      echo "tick:    This is how a narrowed scan window looks (the base was advanced). Re-run scripts/start-phase.sh" >&2
+      echo "tick:    from the true phase start on a clean tree, or review the range manually. NOT ticking." >&2
+      exit 3
+    fi
+  fi
+fi
+
 [ -f .claude/lib/_secret-scan.sh ] && . .claude/lib/_secret-scan.sh 2>/dev/null || true
 [ -f .claude/lib/_high-stakes.sh ] && . .claude/lib/_high-stakes.sh 2>/dev/null || true
 [ -f .claude/lib/_roadmap.sh ]     && . .claude/lib/_roadmap.sh     2>/dev/null || true
+[ -f .claude/lib/_test-cmd.sh ]    && . .claude/lib/_test-cmd.sh    2>/dev/null || true
 
 command -v secret_scan_diff   >/dev/null 2>&1 || refuse "secret-scan library unavailable — fail-closed"
 command -v high_stakes_match  >/dev/null 2>&1 || refuse "high-stakes library unavailable — fail-closed"
 command -v roadmap_phase_mode >/dev/null 2>&1 || refuse "roadmap parser library unavailable — fail-closed"
+
+# --- manual test-command identity binding (F3a / audit H2/M3) ---
+# In MANUAL mode (no orchestrator gate-control byte-check), a builder could commit a change to
+# .claude/test-command mid-phase to swap the graded suite for a weaker one, then generate green
+# evidence with it. The phase-start anchor records the authorized command identity; require the anchor,
+# the recorded evidence, and the CURRENT authorized command to all agree before ticking. Only meaningful
+# when the anchor is the base source (manual mode) AND the phase actually produced a green test command
+# (a no-tests phase, passed:null, carries no command to bind). Headless is unaffected: it gate-controls
+# .claude/test-command against START_REF, and LEAN_TEST_CMD is set in the orchestrator's own shell.
+if [ "$ANCHOR_USED" = 1 ] && [ "$e_passed" = "true" ] && command -v authorized_test_cmd >/dev/null 2>&1; then
+  an_cmd=$(grep -E '^test_command=' .claude/.phase-anchor 2>/dev/null | head -1 | cut -d= -f2-)
+  an_sha=$(grep -E '^test_config_sha=' .claude/.phase-anchor 2>/dev/null | head -1 | cut -d= -f2-)
+  ev_cmd=$(jq -r '.command // ""' "$EVIDENCE" 2>/dev/null)
+  cur_cmd=$(authorized_test_cmd 2>/dev/null || true)
+  cur_src=$(authorized_test_cmd_source 2>/dev/null || echo none)
+  # Only enforce when the anchor actually bound a command (older/no-command anchors carry an empty
+  # test_command — documented residual: a phase started with no authorized command is not bound).
+  if [ -n "$an_cmd" ]; then
+    if [ "$an_cmd" != "$ev_cmd" ]; then
+      refuse "graded test command ('$ev_cmd') differs from the phase-start authorized command ('$an_cmd') — the suite was changed mid-phase. Re-run scripts/start-phase.sh from a clean tree if the change is intentional."
+    fi
+    if [ "$an_cmd" != "$cur_cmd" ]; then
+      refuse "the currently-authorized test command ('$cur_cmd') differs from the phase-start command ('$an_cmd') — .claude/test-command (or LEAN_TEST_CMD) changed mid-phase. Re-run scripts/start-phase.sh if intentional."
+    fi
+    # Stronger content bind for the file source, when the anchor recorded a sha (new anchors).
+    if [ -n "$an_sha" ] && [ "$cur_src" = "file:.claude/test-command" ]; then
+      cur_sha=$(authorized_test_cmd_config_sha 2>/dev/null || true)
+      if [ -n "$cur_sha" ] && [ "$an_sha" != "$cur_sha" ]; then
+        refuse ".claude/test-command CONTENT changed since phase start (config sha ${an_sha:0:12} → ${cur_sha:0:12}) — re-run scripts/start-phase.sh if intentional."
+      fi
+    fi
+  fi
+fi
 
 SF=$(secret_scan_diff "$RANGE"); SRC=$?
 if [ "$SRC" -ne 0 ]; then

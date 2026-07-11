@@ -372,6 +372,25 @@ echo "gate-controlled .claude/test-command; NEVER settings.json's env block or a
   authorized_test_cmd >/dev/null 2>&1; rc=$?
   [ "$rc" = 2 ] && pass "a no-op ('true') in .claude/test-command → REJECTED (rc 2, never grades green)" || fail "no-op file command not rejected (rc=$rc)"
 ) || FAILS=$((FAILS+1))
+# F3c — bounded, high-confidence WRAPPED / degenerate no-ops are also rejected (a builder cannot dodge
+# the reject list by wrapping `true` in `sh -c`, or using an output-only echo/printf).
+for nop in 'sh -c true' 'bash -c true' 'sh -c :' "bash -c 'exit 0'" 'exit 0' 'echo pass' 'printf ok' ': ; :' '  bash -c true  '; do
+  (
+    scenario_dir; mkdir -p .claude; unset LEAN_TEST_CMD
+    printf '%s\n' "$nop" > .claude/test-command
+    authorized_test_cmd >/dev/null 2>&1; rc=$?
+    [ "$rc" = 2 ] && pass "wrapped/degenerate no-op rejected: '$nop' → rc 2" || fail "wrapped no-op NOT rejected: '$nop' (rc=$rc)"
+  ) || FAILS=$((FAILS+1))
+done
+# ...but a REAL command must NOT be over-rejected — including a genuine pipeline that starts with echo.
+for real in 'pytest -q' 'npm test --silent' 'go test ./...' 'echo hi | ./run-tests.sh'; do
+  (
+    scenario_dir; mkdir -p .claude; unset LEAN_TEST_CMD
+    printf '%s\n' "$real" > .claude/test-command
+    out=$(authorized_test_cmd); rc=$?
+    { [ "$rc" = 0 ] && [ "$out" = "$real" ]; } && pass "real command accepted (not a no-op): '$real'" || fail "real command wrongly rejected: '$real' (rc=$rc)"
+  ) || FAILS=$((FAILS+1))
+done
 (
   scenario_dir; mkdir -p .claude; unset LEAN_TEST_CMD
   printf 'none: this phase is docs-only, no tests\n' > .claude/test-command

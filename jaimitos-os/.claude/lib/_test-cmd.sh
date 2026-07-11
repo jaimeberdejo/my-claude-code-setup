@@ -129,6 +129,26 @@ resolve_test_cmd() {
 #   rc 1          — explicit no-tests sentinel (`none:`)
 #   rc 2          — a configured command was REJECTED as a no-op (fail-closed; never grade green)
 #   rc 3          — nothing configured (no env, no file) — fail-closed / unconfigured
+
+# _tc_is_noop <command>: 0 if <command> is a HIGH-CONFIDENCE degenerate/no-op that runs no tests, 1
+# otherwise. Bounded on purpose — this is NOT arbitrary program-equivalence (a real binary that happens
+# to exit 0 is undetectable; documented residual). It strips one `sh -c`/`bash -c` wrapper and one layer
+# of surrounding quotes, then matches the classic no-ops plus bare echo/printf (output-only). It refuses
+# to classify anything containing a shell operator ( | & ; < > ` ) as output-only, so a real pipeline
+# like `echo x | grader` is never wrongly rejected.
+_tc_is_noop() {
+  local c="$1"
+  case "$c" in 'sh -c '*) c="${c#sh -c }" ;; 'bash -c '*) c="${c#bash -c }" ;; esac
+  case "$c" in \'*\') c="${c#\'}"; c="${c%\'}" ;; \"*\") c="${c#\"}"; c="${c%\"}" ;; esac
+  c="${c#"${c%%[![:space:]]*}"}"; c="${c%"${c##*[![:space:]]}"}"   # trim
+  case "$c" in
+    ''|true|':'|'exit 0'|'/bin/true'|'/usr/bin/true'|': ; :'|'true ; true'|'true; true') return 0 ;;
+  esac
+  case "$c" in *[\|\&\;\<\>\`]*) return 1 ;; esac   # has an operator → could be a real pipeline
+  case "$c" in echo|echo\ *|printf|printf\ *) return 0 ;; esac
+  return 1
+}
+
 authorized_test_cmd() {
   if [ -n "${LEAN_TEST_CMD:-}" ]; then printf '%s' "$LEAN_TEST_CMD"; return 0; fi
   local f=".claude/test-command" line
@@ -138,11 +158,12 @@ authorized_test_cmd() {
     line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
     case "$line" in
       none|none:*) return 1 ;;
-      ''|true|':'|'exit 0'|'/bin/true'|'/usr/bin/true')
-        echo "authorized_test_cmd: .claude/test-command is empty or a no-op ('$line') — not a real test suite (fail-closed)." >&2
-        return 2 ;;
-      *) printf '%s' "$line"; return 0 ;;
     esac
+    if _tc_is_noop "$line"; then
+      echo "authorized_test_cmd: .claude/test-command is empty, a no-op, or output-only ('$line') — not a real test suite (fail-closed)." >&2
+      return 2
+    fi
+    printf '%s' "$line"; return 0
   fi
   echo "authorized_test_cmd: no authorized test command. Set LEAN_TEST_CMD, or write the command to" >&2
   echo "  .claude/test-command (run 'bash scripts/doctor.sh --fix' or the setup skill to seed it from" >&2
@@ -156,6 +177,21 @@ authorized_test_cmd_source() {
   if [ -n "${LEAN_TEST_CMD:-}" ]; then printf 'env:LEAN_TEST_CMD'; return 0; fi
   [ -f .claude/test-command ] && { printf 'file:.claude/test-command'; return 0; }
   printf 'none'; return 0
+}
+
+# authorized_test_cmd_config_sha — the IDENTITY of the config that authorizes the command (finding
+# F3/M3), so a phase-start anchor and the tick gate can prove the graded command did not change
+# mid-phase. For the file source it is the sha256 of .claude/test-command; for the env source, the
+# sha256 of the literal LEAN_TEST_CMD value; empty otherwise. A mid-phase rewrite of the file (or a
+# changed env) is then detectable even if the resolved command string happens to be unchanged.
+authorized_test_cmd_config_sha() {
+  local src; src="$(authorized_test_cmd_source)"
+  case "$src" in
+    file:.claude/test-command)
+      [ -f .claude/test-command ] && { shasum -a 256 .claude/test-command 2>/dev/null || sha256sum .claude/test-command 2>/dev/null; } | cut -d' ' -f1 ;;
+    env:LEAN_TEST_CMD)
+      printf '%s' "${LEAN_TEST_CMD:-}" | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -d' ' -f1 ;;
+  esac
 }
 
 # _seed_test_cmd — resolve a command to SEED into .claude/test-command at migration/setup time, from
