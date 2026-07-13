@@ -32,7 +32,13 @@ Close out this session:
       fresh green tests + a clean secret scan + no high-stakes changes, then ticks the roadmap
       and updates the STATE auto-block. It prints the exact `BASE..HEAD` range it judged (derived
       from the `.claude/.phase-anchor` set by `start-phase.sh`) — glance at it and confirm it covers
-      the whole phase. If it REFUSES, surface the reason — do not tick by hand.
+      the whole phase. If it REFUSES, surface the reason — do not tick by hand. Two refusals you may
+      see since v2.9.0: (i) if the graded test command doesn't match the one recorded in the anchor at
+      phase start (someone changed `.claude/test-command` mid-phase) or the anchor's base was advanced
+      after it was set, tick refuses — re-run `start-phase.sh` from a clean tree if the change was
+      intentional; (ii) the tick updates `docs/ROADMAP.md` and `docs/STATE.md` **atomically** (both or
+      neither), so on a failure nothing is half-applied — fix the cause (e.g. a read-only STATE) and
+      re-run.
       If the phase is `Mode: supervised`, `tick.sh` refuses until you add `--supervised-approved`
       (and optionally `--note "<why it's safe>"`) to explicitly, auditably approve THIS phase at
       THIS commit — that flag clears only the supervised refusal; every other gate still applies.

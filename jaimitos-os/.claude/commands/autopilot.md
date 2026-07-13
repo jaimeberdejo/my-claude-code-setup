@@ -46,6 +46,8 @@ Loop until the count target is met OR `docs/ROADMAP.md` has no `- [ ]` items:
    — this in-session loop rots context the way the headless script does not.
 
 At the end, summarize: phases completed, remaining, and the single next action. Do not push to a
-remote. What this loop LACKS versus `scripts/autopilot.sh` is evaluator-change discard and throwaway-
-worktree isolation — you (the watcher) are those guardrails. High-stakes work is `supervised`; for
+remote. (The headless `scripts/autopilot.sh --pr` publishes only after the *whole* requested run
+succeeds — a failed, aborted, or partial run keeps the branch local and exits non-zero; this
+in-session loop never pushes at all.) What this loop LACKS versus `scripts/autopilot.sh` is
+evaluator-change discard and throwaway-worktree isolation — you (the watcher) are those guardrails. High-stakes work is `supervised`; for
 unattended high-stakes runs there is no safe mode — do it by hand.

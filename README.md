@@ -280,12 +280,35 @@ high-stakes changes, then flips the checkbox and updates the STATE auto-block. I
 on any refusal `docs/ROADMAP.md` is left byte-identical. So the secret-scan, high-stakes, and
 evidence checks apply in the *in-session* modes too, not only the headless script.
 
+**Two things the gate now guarantees.** (1) **The tick is atomic** — ROADMAP and STATE are updated
+**both or neither**; you never see a ticked checkbox with a stale STATE, and a failure leaves both at
+their pre-tick state (an interrupted transition is detected and refused on the next run). (2) **In
+manual mode your evidence is bound to the phase start** — `start-phase.sh` records the authorized
+test command's identity in the tracked `.claude/.phase-anchor`, and `/wrap`'s tick refuses if the
+graded command, the current `.claude/test-command`, and that anchored identity don't all match, or if
+the anchor's scan floor was advanced after it was set. So a builder can't quietly swap in a weaker
+test command or narrow the scan window mid-phase and still tick.
+
 **What the headless script adds on top of that shared gate is isolation:** a fresh Claude process
 per phase (so context never rots), snapshot-and-discard of any change the evaluator makes, and
 throwaway-worktree isolation (a bad run can't touch your checkout; a high-stakes branch is never
 pushed, even with `--pr`). The in-session `/autopilot` and `/phase`+`/wrap` modes share the tick
 gate but not that isolation — you (the watcher) are that guardrail. Use the headless script for
 unattended runs; use the in-session modes when you want to watch.
+
+**Publication contract (`--pr`).** The headless loop pushes / opens a PR **only after the complete
+requested run finished successfully** — every phase built, independently graded PASS, and ticked. A
+run that fails, is aborted (watchdog / `AGENT_STOP`), hits a high-stakes or supervised stop, or only
+*partially* completes (some phases done, a later one failed) **never publishes**: the branch stays
+local and the run exits non-zero (an intentional supervised stop exits 0). So a branch carrying
+ungraded, half-finished work can't reach a remote.
+
+**Sandbox export preserves your work.** `sandbox/run-autopilot-sandboxed.sh` **rejects `--no-worktree`**
+before it starts a container (that flag would make the loop commit somewhere the export step can't
+recover). After the run it either imports **all** produced work back — new `autopilot/*` branches,
+and, defensively, any commit on another branch, detached commit, or dirty/untracked file — or, if
+anything can't be exported cleanly, it **preserves the staging clone and prints exact recovery
+commands** rather than deleting it. Work is never discarded behind a warning.
 
 ---
 
@@ -316,6 +339,12 @@ same gate, fail-closed if the tool is missing.
 
 - `bash scripts/doctor.sh` — one-command health check (run before any unattended run).
 - `bash scripts/test-hooks.sh` — hook smoke tests (incl. the secret-scan guard).
+- **Release verification** — before cutting a release run `bash scripts/release-check.sh --prepare`
+  (checks `VERSION` == the newest CHANGELOG heading, `[Unreleased]` is empty, and the tree is clean;
+  the `v$VERSION` tag is expected to be absent yet). After you tag and push, `--released` confirms an
+  **annotated** `v$VERSION` tag that actually points at a commit whose `VERSION` and newest CHANGELOG
+  both equal `$VERSION` (so a tag on the wrong commit fails), reports whether HEAD is that commit, and
+  checks the remote tag when an `origin` exists. It only reports — it never creates or pushes a tag.
 - **Repo CI** `.github/workflows/ci.yml` — on push/PR, runs shell-syntax + `settings.json`
   validation against `jaimitos-os/`, shellcheck + actionlint, lints `install.sh`, runs the
   **behavioral guard suite** (`scripts/run-guard-tests.sh` — the single test list both this

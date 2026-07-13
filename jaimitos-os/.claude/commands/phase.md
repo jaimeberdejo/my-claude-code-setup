@@ -41,7 +41,10 @@ of roadmap order; bare `/phase` (no argument) is unchanged.
      will judge — so advancing the floor later is a VISIBLE commit, not the silent gitignored-file
      rewrite the old `.claude/.phase-base` allowed (finding H1). On a RE-RUN of the same phase after a
      NEEDS_WORK, `start-phase.sh` is idempotent — it detects the existing anchor and does NOT stack a
-     second one, so the floor keeps pointing at the phase's true start.
+     second one, so the floor keeps pointing at the phase's true start. Since v2.9.0 the anchor also
+     records the authorized test command (source + command + config hash); `/wrap`'s tick later refuses
+     if the graded/current test command no longer matches what was anchored here, so don't change
+     `.claude/test-command` mid-phase (re-run `start-phase.sh` from a clean tree if you must).
      (Under headless `scripts/autopilot.sh` none of this applies: the orchestrator re-derives the phase
      base in its OWN trusted shell and passes it via `TICK_BASE`, which `scripts/tick.sh` prefers over
      both the anchor and `.phase-base` — a builder can't forge it to narrow the safety scan. The anchor

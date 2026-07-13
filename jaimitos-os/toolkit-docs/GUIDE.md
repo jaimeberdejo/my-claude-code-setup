@@ -610,6 +610,31 @@ deterministic high-stakes gate in `_high-stakes.sh`.
 
 ---
 
+## Part 5.5 — v2.9.0 trust hardening (what changed)
+
+Concrete behaviors you'll observe since v2.9.0:
+
+- **Safe autopilot publication.** Headless `scripts/autopilot.sh --pr` pushes / opens a PR **only
+  after the whole requested run succeeded**. A failed, aborted, high-stakes/supervised, or *partial*
+  run keeps the branch local and exits non-zero (a supervised stop exits 0) — ungraded work never
+  reaches a remote.
+- **Sandbox export preservation.** `sandbox/run-autopilot-sandboxed.sh` **rejects `--no-worktree`**
+  up front, and after the run either imports every branch/commit the loop produced or **preserves the
+  staging clone with exact recovery commands**. It never deletes work behind a "nothing to import".
+- **Start-phase anchor identity.** `scripts/start-phase.sh` records the authorized test command
+  (source + command + config sha) alongside the scan floor in the tracked `.claude/.phase-anchor`.
+  Manual `/wrap` refuses to tick if the graded/current/anchored test command disagree, or if the
+  anchor's base was advanced after it was set (naive scan-window narrowing → `tick.sh` exit 3).
+  Tamper-evident + human-reviewed, not builder-proof; headless (`TICK_BASE`) stays trust-equivalent.
+- **Rollback-safe ROADMAP/STATE.** A tick updates `docs/ROADMAP.md` and `docs/STATE.md` **both or
+  neither**: it stages both, validates them, backs up the originals, applies both, and rolls back on
+  any failure (preserving `*.tick-bak` backups + printing recovery if rollback itself can't complete).
+  A read-only STATE is caught before any change; leftover `*.tick-*` from an interrupted run is refused.
+- **Release-check modes.** `scripts/release-check.sh --prepare` (before tagging) and `--released`
+  (after) — the latter verifies the annotated `v$VERSION` tag points at a commit whose `VERSION` and
+  newest CHANGELOG both equal `$VERSION`, reports HEAD↔tag, and checks the remote tag when `origin`
+  exists.
+
 ## Part 6 — Loop engineering (the theory)
 
 *(Absorbed from the former `LOOP-ENGINEERING.md`.)* Loop engineering is the discipline of getting

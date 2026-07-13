@@ -127,4 +127,31 @@ prompt) only *asks* a model to comply.
   timeout reduce blast radius; they do not make irreversible actions safe. Set a hard budget cap as
   the outer backstop.
 
+- **Publication is fail-closed (v2.9.0).** The headless loop pushes / opens a PR (`--pr`) **only after
+  the complete requested run finished successfully**. Any failure, watchdog/`AGENT_STOP` abort,
+  high-stakes/supervised stop, or a partially-completed multi-phase run keeps the branch local — so
+  ungraded, half-finished work never reaches a remote. Failures and aborts exit non-zero.
+- **Completion evidence is bound to the phase start (v2.9.0) — in manual mode this is tamper-evident,
+  not tamper-proof.** `start-phase.sh` records the authorized test-command identity (source + command
+  + config hash) and the scan floor in the tracked `.claude/.phase-anchor`. Manual `/wrap` refuses to
+  tick if the graded command, the current `.claude/test-command`, and the anchored identity don't all
+  agree, or if the anchor's base was advanced after it was set (a naive scan-window narrowing → tick
+  exit 3). **But manual mode still assumes a human reviewer against arbitrary git.** A builder that can
+  run any `git` command can `reset`+re-anchor to reconstruct history; no local, crypto-free check
+  prevents that. That is exactly why **headless autopilot derives its scan floor and test config
+  outside the builder** (orchestrator-trusted `TICK_BASE` + gate-control byte-integrity) and is the
+  trust-equivalent path for unattended runs; `/wrap` is human-supervised — run it from a clean tree and
+  glance at the `BASE..HEAD` range it prints.
+- **Evaluator ignored-fixture protection is opt-in per directory.** The evaluator-isolation check
+  collapses pre-existing ignored directories (so it never walks `node_modules`/caches), which means a
+  file created inside such a dir during grading is invisible **unless that directory is listed in the
+  project-owned `.claude/eval-fixture-paths`**. List your small fixture/output dirs there to have their
+  contents hashed and checked; unlisted ignored dirs remain a documented residual.
+- **No claim of protection against a malicious local user with arbitrary git control.** Every guarantee
+  above assumes the *code-writing agent* runs in a sandbox/container with no production credentials
+  (that is what the headless-autopilot trust boundary and the sandbox wrapper are for). A person — or a
+  process — with a normal shell and full `git`/filesystem access on the host can rewrite history, edit
+  gate code, or exfiltrate; the guards here make such tampering **visible and bounded**, they do not
+  make it impossible.
+
 In short: the guards here make mistakes *visible and bounded*. Containment is on you.
