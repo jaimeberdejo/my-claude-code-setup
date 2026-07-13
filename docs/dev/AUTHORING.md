@@ -70,12 +70,31 @@ That buys autonomous firing and reach from other skills. A **user-invoked** skil
 (`disable-model-invocation: true`) costs **zero** always-loaded context — but you must remember it
 exists.
 
-Choose model-invoked *only* when the model or another skill must reach it unprompted. `prototype` and
-`review-feedback` are user-invoked precisely because they should never fire on their own — a skill
-that writes throwaway code has no business auto-triggering inside a TDD-mandatory scaffold.
+**User-invoked is the default. Model-invocation carries the burden of proof — and the proof is a
+list, not an argument.** Before choosing, enumerate the consumers:
 
-`test-skills.sh` enforces a per-description cap and a total budget. If you blow it, make a skill
-user-invoked. **Do not solve a context budget by making instructions vague.**
+```bash
+grep -rn "<skill-name>" skills/ jaimitos-os/.claude/
+```
+
+For each one, ask: does it reach the skill **autonomously**, or does it **name the skill explicitly**
+(by path, or by name)? A consumer that names it explicitly reads the file directly and needs no
+description in the window. **If no consumer relies on autonomous reach, the skill is user-invoked.**
+
+> **This rule is written in blood.** v2.10.0 shipped `module-design` model-invoked, reasoning that
+> "five components must reach it". All five named it by path; none needed auto-fire. The argument
+> felt right and the grep would have settled it in ten seconds. An independent review overturned it
+> one release later, and v2.11.0 reverted it — reclaiming 295 B/turn. **Run the grep.**
+
+Watch for the circular defence: *"a user might type a bare question only this skill answers."* A user
+who can phrase the question in the skill's own vocabulary has already read it; one who cannot phrases
+it in ordinary words, which fire some **other** skill's trigger. `module-design`, `prototype` and
+`review-feedback` are all user-invoked — three of the last four skills added. That is not a
+coincidence; it is what happens when the default is applied honestly.
+
+`test-skills.sh` enforces a per-description cap and a total budget. Report the **new total**, not the
+marginal cost: every single skill looks affordable on its own, which is exactly how a budget dies.
+**Do not solve a context budget by making instructions vague.**
 
 ### Descriptions
 Front-load the trigger. One trigger per genuinely distinct branch — synonyms restating one branch are
@@ -164,6 +183,12 @@ bash jaimitos-os/scripts/run-guard-tests.sh      # everything (registration is e
 bash .github/scripts/install-smoke.sh            # proves maintainer-only stays unshipped
 ```
 
-Then **dogfood it once on real work**, and have someone who did not write it review it. A component
-that has never been used is a guess. Static validation proving a component is well-formed is not
-evidence that it was worth adding.
+Then **dogfood it once on real work**, and have **someone who did not write it** review it. A
+component that has never been used is a guess. Static validation proving a component is well-formed is
+not evidence that it was worth adding.
+
+**"Independent" means independent.** Not the author reviewing carefully. Not a subagent you briefed
+and then graded. If nobody independent has looked at it, it is not cleared — say so rather than
+quietly counting your own approval. v2.10.0's review of `module-design` was performed by the same
+person who orchestrated its creation; it approved a decision a genuinely independent reviewer
+overturned one release later. **Self-reviews find nothing, reliably.**

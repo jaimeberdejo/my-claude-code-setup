@@ -55,8 +55,32 @@ Answer **all** of these before writing a line:
   description is stripped from the model's reach and becomes human-facing. It spends the maintainer's
   memory instead: *you* are the index.
 
-Choose model-invoked **ONLY** when the agent or another skill must reach it on its own. Everything else
-is user-invoked.
+**User-invoked is the DEFAULT. Model-invocation carries the burden of proof**, and the proof is not
+an argument — it is a list.
+
+### The consumer enumeration (mandatory; do this before you choose)
+State plainly *who* is supposed to reach this skill, and *how*. Then check:
+
+```bash
+grep -rn "<skill-name>" skills/ jaimitos-os/.claude/
+```
+
+For **every** consumer, answer one question: **does it reach the skill autonomously, or does it name
+the skill explicitly** (by path, or by invoking it by name)? A consumer that names it explicitly reads
+the file directly and needs **no** description in the window.
+
+**If no consumer relies on autonomous reach, the skill is user-invoked. Full stop** — regardless of
+how natural a trigger phrase you can imagine for it. An imagined user question is not a consumer.
+
+> This check exists because v2.10.0 shipped `module-design` model-invoked on exactly that reasoning —
+> "five components must reach it" — when all five named it by path and none needed auto-fire. The
+> independent review caught it and it was reverted in v2.11.0. The argument felt right; the grep would
+> have settled it in ten seconds. **Run the grep.**
+
+Beware the circular defence: *"a user might type a bare question about X, and only this skill answers
+it."* A user who can phrase the question in the skill's own vocabulary has already read it. A user who
+cannot phrases it in ordinary words — which fire some **other** skill's trigger. Check whether that
+other skill already covers the case before you pay a description for it, every turn, forever.
 
 ## Description rules
 - **Front-load the trigger** — the description does its invocation work in its first words.
@@ -103,17 +127,26 @@ Emit this at the end, verbatim:
 - Why a new skill is justified:
 - Existing overlap reviewed:
 - Rejected alternatives:
-- Invocation mode:
+- Invocation mode:                <!-- and the CONSUMER ENUMERATION that decided it -->
 - Artifact authority:
 - Tools:
 - Files created or changed:
 - Catalog/profile placement:
-- Context cost:
+- Context cost:                   <!-- this skill's bytes AND the new always-loaded total -->
 - Tests:
 - Dogfood:
+- Independent review:             <!-- WHO reviewed it — and it may not be you -->
 - Provenance:
 - Remaining risks:
 ```
+
+**`Independent review:` may not name you.** A component's author cannot clear it — not "reviewed my
+own work carefully", not a subagent you briefed and then graded. If nobody independent has looked at
+it, write `NONE — not cleared for release` and mean it.
+
+That field exists because it was skipped. v2.10.0's review of `module-design` was performed by the
+same person who orchestrated its creation, and it approved a decision a genuinely independent
+reviewer overturned one release later. The self-review found nothing because self-reviews rarely do.
 
 <!-- Adapted from obra/superpowers (MIT) — https://github.com/obra/superpowers -->
 <!-- Adapted from mattpocock/skills (MIT) — https://github.com/mattpocock/skills -->

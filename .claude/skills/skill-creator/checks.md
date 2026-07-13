@@ -54,10 +54,18 @@ If adapted from someone else's work: the one-line attribution comment at the bot
 
 ## Content
 
-- **Measured context cost.** Model-invoked: count the bytes of `name` + `description` — that is what
-  loads every turn. User-invoked: zero. State the number.
+- **Measured context cost — this skill AND the total.** Model-invoked: count the bytes of `name` +
+  `description`; that is what loads every turn. User-invoked: zero. Then report the **new
+  always-loaded total**, not just the marginal cost — a per-skill number always looks affordable,
+  which is how a budget dies by a thousand affordable increments:
+  ```bash
+  bash jaimitos-os/scripts/test-skills.sh | grep 'description budget'
+  ```
 - **No duplicate instructions** — one meaning, one home. A rule restated in two skills is a
-  maintenance bug and inflates its apparent rank.
+  maintenance bug and inflates its apparent rank. If a component genuinely must restate a rule to
+  stand alone (the `evaluator` restates the deletion test because a gate-checked grading contract
+  cannot depend on reading a skill file), that exception is **documented at the canonical home**,
+  not left to look like an accident.
 - **No stale or no-op prose.** Test each sentence in isolation: does it change behaviour versus the
   model's default? If not, delete the sentence — do not trim words from it.
 - SKILL.md within the house range of ~30–80 lines, unless it is maintainer tooling that says why it
