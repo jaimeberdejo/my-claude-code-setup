@@ -1,0 +1,77 @@
+{
+  "_comment": [
+    "The expected install footprint of a PINNED Spec Kit. Its purpose is to make upstream drift",
+    "obvious on the next release: spec-kit ships multiple releases a day, and a footprint that",
+    "changes silently is how a collision reaches a user project.",
+    "",
+    "This is checked by bin/speckit-footprint.sh, which is OWNERSHIP-aware. The naive rule --",
+    "'after specify init, nothing but speckit-* may change' -- is wrong twice: speckit-* files are",
+    "SUPPOSED to appear (that is the integration working, not a collision), and the Claude",
+    "integration's documented footprint includes an agent-context file (CLAUDE.md). So we compare",
+    "OWNERS, not names: same path + same owner = expected; same path + different owner = collision."
+  ],
+
+  "spec_kit_version": "0.12.13",
+  "spec_kit_sha": "a965413a24f127ba0bde027008b1ac6606237a41",
+  "spec_kit_repo": "https://github.com/github/spec-kit",
+  "spec_kit_license": "MIT",
+  "integration": "claude",
+  "inspected": "2026-07-14",
+
+  "spec_kit_manifest": ".specify/integrations/speckit.manifest.json",
+  "jaimitos_manifest": ".claude/.jaimitos-manifest",
+
+  "_owned_note": [
+    "Every path matching expected_owned_patterns must ALSO be claimed by Spec Kit's own manifest.",
+    "A speckit-*-looking file that Spec Kit does not claim is the collision case: same name,",
+    "different owner."
+  ],
+  "expected_owned_patterns": [
+    ".claude/skills/speckit-*",
+    ".specify/*",
+    "specs/*"
+  ],
+
+  "_conditional_note": [
+    "Reported and shown to a human, never auto-rejected. The Claude integration is multi_install_safe",
+    "and writes an agent-context file. Rejecting this would reject documented, correct behavior --",
+    "but accepting it silently would hide a real change to the file that governs the project."
+  ],
+  "conditionally_modified": [
+    "CLAUDE.md"
+  ],
+
+  "_forbidden_note": [
+    "Jaimitos state. If Spec Kit ever writes any of these, it has become a second orchestrator and",
+    "the integration is a REJECT -- no discussion, no mitigation."
+  ],
+  "forbidden": [
+    "docs/ROADMAP.md",
+    "docs/SPEC.md",
+    "docs/STATE.md",
+    "docs/decisions/*",
+    "scripts/*",
+    ".claude/agents/*",
+    ".claude/commands/*",
+    ".claude/hooks/*",
+    ".claude/lib/*",
+    ".claude/.phase-grade",
+    ".claude/.tick-evidence.json",
+    ".claude/.phase-anchor",
+    ".claude/.jaimitos-manifest"
+  ],
+
+  "_context_note": [
+    "Spec Kit's Claude skills ship with `disable-model-invocation: false`, so every one of their",
+    "descriptions sits in the model's window EVERY TURN, in the user's project, forever. Jaimitos",
+    "caps its own model-invoked descriptions at 6000 B (test-skills.sh check 6) -- but that check",
+    "iterates only the toolkit's skills/ directory and CANNOT SEE these. There is no supported way",
+    "to exclude a Spec Kit core command. This is REJECT criterion R1, and the footprint check",
+    "MEASURES it rather than estimating it."
+  ],
+  "measure_always_loaded": {
+    "glob": ".claude/skills/speckit-*/SKILL.md",
+    "field": "description",
+    "note": "Only skills WITHOUT `disable-model-invocation: true` cost always-loaded context."
+  }
+}
