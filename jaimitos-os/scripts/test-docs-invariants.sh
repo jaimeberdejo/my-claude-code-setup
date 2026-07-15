@@ -93,6 +93,15 @@ assert_has ".claude/agents/evaluator.md" "records a grade only when it is exactl
 assert_absent ".claude/agents/evaluator.md" "End your response with exactly one line:
 - \`PASS\` — every acceptance criterion is demonstrably met AND" \
            "evaluator's old single-axis verdict text is gone"
+# Requirement traceability: CONDITIONAL (fires only when a phase declares Requirements:), and it must
+# be written for ANY external requirements source — never naming a specific tool. If it cannot be
+# written tool-agnostically, it does not belong in a shipped agent. (Release 2 experiment.)
+assert_has    ".claude/agents/evaluator.md" "only when the active phase declares" \
+              "evaluator's requirement-traceability section is CONDITIONAL, not an unconditional new axis"
+assert_absent ".claude/agents/evaluator.md" "speckit" \
+              "the shipped evaluator names no external tool (tool-agnostic, or it does not belong in core)"
+assert_absent ".claude/agents/evaluator.md" "spec kit" \
+              "the shipped evaluator names no external tool (spelled-out form)"
 
 # Prototype — sanctioned, but never a route to a tick.
 assert_has "../skills/prototype/SKILL.md" "**MAY NEVER** satisfy production implementation or release criteria" \
