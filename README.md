@@ -65,7 +65,7 @@ jaimitos-claude-setup/
 │       ├── commands/                # /resume /wrap /phase /autopilot /models
 │       ├── agents/                  # researcher, planner, executor, evaluator — one per /phase stage
 │       ├── rules/high-stakes.md     # path-scoped extra care
-│       └── hooks/                   # 7 deterministic shell hooks + 5 shared libs (_secret-scan, _high-stakes, _test-cmd, _eval-isolation, _roadmap)
+│       └── hooks/                   # 7 deterministic shell hooks + 6 shared libs (_secret-scan, _high-stakes, _test-cmd, _eval-isolation, _roadmap, _requirements)
 └── skills/                ← the skill pack (portable + setup-jaimitos-os installer) — see skills/README.md
 ```
 
@@ -184,7 +184,7 @@ You drive each arrow manually for stakes that warrant it, or hand the bracket to
 
 ## Hooks (deterministic shell — not all enforce; see Enforcement reality)
 
-Seven deterministic shell hooks plus five shared libs:
+Seven deterministic shell hooks plus six shared libs:
 
 | Hook | Event | Role |
 |---|---|---|
@@ -196,8 +196,8 @@ Seven deterministic shell hooks plus five shared libs:
 | `commit-on-stop.sh` | stop | Auto-checkpoint dirty work after a staged secret scan. |
 | `ownership-nudge.sh` | stop | Reminds you to ADR / teach-back / map architecture after code changes. Also flags when a change happened outside an active phase, so `docs/STATE.md` doesn't silently go stale. |
 
-`_secret-scan.sh`, `_high-stakes.sh`, `_test-cmd.sh`, and `_eval-isolation.sh` are sourced
-libraries, not hooks.
+`_secret-scan.sh`, `_high-stakes.sh`, `_test-cmd.sh`, `_eval-isolation.sh`, `_roadmap.sh`, and
+`_requirements.sh` are sourced libraries, not hooks.
 
 ## Skills (`skills/`)
 

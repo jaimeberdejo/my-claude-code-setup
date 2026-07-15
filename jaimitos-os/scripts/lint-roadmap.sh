@@ -12,6 +12,15 @@ for a in "$@"; do case "$a" in
 esac; done
 [ -f "$FILE" ] || { echo "lint-roadmap: no $FILE — nothing to lint."; exit 0; }
 
+# Source the requirement-id validator (sibling lib). Resolved relative to THIS script so it works
+# whether run from the project root or elsewhere; optional — absent means id validation is simply
+# skipped. It is inert unless a phase declares a `Requirements:` line. (SC1090/1091 disabled
+# repo-wide: this is a runtime-resolved source path by design.)
+LINT_LIB="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.claude/lib" 2>/dev/null && pwd)" || LINT_LIB=""
+if [ -n "$LINT_LIB" ] && [ -f "$LINT_LIB/_requirements.sh" ]; then
+  . "$LINT_LIB/_requirements.sh" 2>/dev/null || true
+fi
+
 OUT=$(awk '
   function flush() {
     if (!tracking) return
@@ -41,11 +50,20 @@ OUT=$(awk '
 ' "$FILE")
 rc=$?
 
-if [ "$rc" -eq 0 ]; then
+# Requirement-id validation (inert unless a phase declares a `Requirements:` line). The helper owns
+# REQ/AC/OBJ semantics so this linter stays the roadmap-schema checker; it derives docs/SPEC.md as a
+# sibling of the roadmap file.
+REQ_OUT=""; REQ_RC=0
+if command -v requirements_lint >/dev/null 2>&1; then
+  REQ_OUT=$(requirements_lint "$FILE"); REQ_RC=$?
+fi
+
+if [ "$rc" -eq 0 ] && [ "$REQ_RC" -eq 0 ]; then
   echo "lint-roadmap: every phase has a valid schema (Done when:, >=1 task, one Mode:)."
   exit 0
 fi
-printf '%s\n' "$OUT"
+[ "$rc" -ne 0 ] && printf '%s\n' "$OUT"
+[ "$REQ_RC" -ne 0 ] && printf '%s\n' "$REQ_OUT"
 if [ "$STRICT" -eq 1 ]; then echo "lint-roadmap: problems found (--strict)."; exit 1; fi
 echo "lint-roadmap: warnings above (advisory; pass --strict to fail)."
 exit 0
