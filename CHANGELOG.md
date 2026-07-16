@@ -8,6 +8,53 @@ uses [Semantic Versioning](https://semver.org/).
 
 _Nothing yet._
 
+## [2.14.0] — 2026-07-16
+
+Progressive control plane — ceremony proportionate to risk, built on R3's traceability spine. All opt-in,
+all offline, zero always-loaded cost (`CLAUDE.md` unchanged at 3140 B). `scripts/tick.sh` stays the sole
+completion authority; the four conditional agents stay four; no Spec Kit / Yojana / Sutra runtime.
+
+### Added — workflow tiers & progressive specification
+- `scripts/classify-work.sh`: an inspectable, side-effect-free helper recommending `TINY | STANDARD |
+  DEEP` from explicit risk/complexity signals; escalation signals (auth, secrets, payments, migrations,
+  public API, …) normally prevent TINY; unknown flags fail closed. The selected tier is recorded in
+  `docs/SPEC.md` `tier:` (overridable).
+- `docs/SPEC.md` gains tier-scaled depth (one template, not three): a compact TINY core, R3's REQ/AC for
+  STANDARD, and a deletable `## Deep design` section for DEEP. A blocking `[NEEDS CLARIFICATION]` prevents
+  progression; a non-blocking deferred question records reason/owner/resolution/impact.
+
+### Added — brownfield, ownership & enforcement
+- `mapme` gains bounded modes `--brownfield`, `--ownership`, `--refresh`; every claim is tagged
+  VERIFIED/INFERRED/UNKNOWN/STALE/CONTRADICTION, stated-vs-actual architecture is classified honestly, and
+  staleness is recorded. Maps are generated views, never canonical state.
+- Three distinct ownership concepts — `.github/CODEOWNERS` (human review), `docs/OWNERSHIP.md` (logical
+  component, via `mapme --ownership`), and a planner `## Change ownership` block (per-phase execution);
+  none grants permission. The evaluator gains an ownership-compliance check on the actual phase diff.
+- `docs/ENFORCEMENT.md` + `scripts/lint-enforcement.sh`: material architectural claims map to an
+  enforcement mechanism or an explicit advisory label; additive, never regenerated from the code graph.
+
+### Added — plan checking, freshness, evidence, UAT
+- The evaluator gains a fresh, read-only `PLAN_CHECK` mode with an integrated pre-mortem
+  (`PASS | PASS_WITH_WARNINGS | FAIL`, a separate channel `record-grade.sh` never reads); the existing
+  two-axis grade is named `IMPLEMENTATION_REVIEW`. `/phase` runs PLAN_CHECK before execution for
+  STANDARD/DEEP/supervised phases.
+- `scripts/check-plan-freshness.sh`: deterministic staleness signals; an invalidated plan may not keep a
+  prior PASS.
+- `scripts/trace-requirements.sh` + `requirements_orphans`: coverage/orphan detection generated from the
+  canonical SPEC + ROADMAP (never a hand-maintained spreadsheet).
+- `test-evidence.sh` emits `schema_version 2` (v1 fields kept for `tick.sh`) with evidence_id, requirement
+  refs, timestamps, classification, a bounded + secret-redacted summary, and a recomputable content_hash;
+  `tick.sh` gates on the version (unknown fails closed).
+- One canonical `docs/UAT.md` + `scripts/check-uat.sh`: tier-dependent acceptance; a blocking failure
+  blocks a release but never bypasses the evaluator/evidence/tick. The planner gains bounded gap planning.
+
+### Added — diagnose, tests, docs
+- `diagnose` strengthens the flaky discipline (record the reproduction rate; one green run is never
+  resolution) and spells out the differential methods.
+- New guard suites — classify-work, requirements/orphans, evidence-schema, enforcement, stale-plan, UAT,
+  diagnose, and control-plane security (fail-closed, read-only, no content-execution) — all registered.
+- `jaimitos-os/toolkit-docs/CONTROL-PLANE.md` guide; ADR-002…007; the AUTHORING guarantee table extended.
+
 ## [2.13.0] — 2026-07-16
 
 Native requirement traceability — the spec and plan sides of the chain v2.12.0 started. Stable

@@ -5,9 +5,10 @@
 #
 # It answers, deterministically: is the plan's baseline still an ancestor of HEAD? do the files the plan
 # names still exist, and have any of them changed since the baseline? do the REQ/AC/OBJ/ENF ids the plan
-# cites still resolve in docs/SPEC.md / docs/ENFORCEMENT.md? A "hard" staleness (baseline diverged, a
-# referenced file gone, a cited id vanished) fails under --strict — the plan may NOT keep a prior PASS.
-# A "soft" signal (a referenced file merely changed) is reported for revalidation but does not fail.
+# cites still resolve in docs/SPEC.md / docs/ENFORCEMENT.md? A "hard" staleness (baseline diverged, an
+# invalid baseline, or a cited id vanished) fails under --strict — the plan may NOT keep a prior PASS.
+# A "soft" signal (a referenced file missing or merely changed) is surfaced for revalidation but does not
+# fail — path roots vary across plans and a moved file may be corrected in the plan with a note.
 #
 # Usage: bash scripts/check-plan-freshness.sh [--strict] [--base <commit>] <plan-file>
 #   Baseline resolution: --base wins; else the plan's own "Plan created at: <sha>" / "Baseline: <sha>" line.
@@ -59,9 +60,15 @@ if [ -n "$FILES" ]; then
     [ -n "$f" ] || continue
     case "$f" in */) continue ;; esac                 # skip bare directories with trailing slash
     if [ ! -e "$f" ]; then
-      # only flag things that really look like tracked repo paths, not prose like `git diff`
-      case "$f" in */*|*.sh|*.md|*.py|*.ts|*.js|*.json|*.yml|*.yaml|*.sql|*.go|*.rb)
-        bad "referenced file no longer exists: $f" ;;
+      # A missing referenced file is a SOFT signal only, and only for a PATH-shaped reference (contains a
+      # "/"). A plan mentions many files it does not strictly depend on, and path roots vary (a plan may
+      # cite `scripts/x.sh` relative to a subdir); the spec itself says a moved file may be corrected in
+      # the plan with a note. So we surface it for revalidation but never block on it — the hard blockers
+      # are baseline-ancestry, an invalid baseline, and a removed cited id.
+      # (Dogfood finding v2.14.0: hard-flagging file existence produced dozens of false positives on a
+      # real dev plan; demoted to soft.)
+      case "$f" in
+        */*) soft "referenced file not found (moved? path root differs?): $f — revalidate" ;;
       esac
     elif [ -n "$CHANGED" ] && printf '%s\n' "$CHANGED" | grep -qxF "$f"; then
       soft "referenced file changed since planning: $f — revalidate the assumptions that rest on it"

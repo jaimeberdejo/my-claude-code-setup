@@ -47,12 +47,12 @@ printf '%s' "$OUT" | grep -q "changed since planning" && pass "changed reference
 bash "$CHK" --strict docs/plans/p.md >/dev/null 2>&1 && pass "a soft-only change does not fail --strict" || fail "soft change wrongly failed --strict"
 
 echo ""
-echo "A referenced file that VANISHED is a hard fail under --strict"
+echo "A referenced file that VANISHED is a SOFT signal (path roots vary; not a hard --strict block)"
 fresh; plan
 git rm -q src/foo.sh >/dev/null; git commit -qm rm
-bash "$CHK" --strict docs/plans/p.md >/dev/null 2>&1 && fail "missing referenced file not caught" || pass "vanished referenced file → --strict fail"
+bash "$CHK" --strict docs/plans/p.md >/dev/null 2>&1 && pass "vanished referenced file does not block --strict (soft)" || fail "vanished file wrongly blocked --strict"
 RMOUT="$(bash "$CHK" docs/plans/p.md 2>&1)"   # capture then grep (SIGPIPE+pipefail flake)
-printf '%s\n' "$RMOUT" | grep -q "no longer exists" && pass "the missing file is named" || fail "missing file not named"
+printf '%s\n' "$RMOUT" | grep -q "not found" && pass "the missing file is surfaced for revalidation" || fail "missing file not surfaced"
 
 echo ""
 echo "A cited requirement id that no longer resolves is a hard fail"
