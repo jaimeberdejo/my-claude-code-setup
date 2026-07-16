@@ -134,6 +134,32 @@ assert_has "../skills/to-spec/SKILL.md" "Match depth to the spec's" \
 assert_has "../skills/grill/SKILL.md" "Match interview depth to the spec's" \
            "grill matches interview depth to the spec tier (discovers, does not mint ids)"
 
+# Mapme brownfield/ownership/refresh modes (v2.14.0) — ALL mapping lives in the one mapme skill; no
+# separate brownfield/ownership/architecture skill. Maps stay GENERATED VIEW (never canonical), facts vs
+# inferences vs unknowns stay distinct, stated-vs-actual is honest, staleness is visible, flag-never-fix holds.
+assert_has "../skills/mapme/SKILL.md" "mapme --brownfield" \
+           "mapme owns a brownfield onboarding mode (not a separate skill)"
+assert_has "../skills/mapme/SKILL.md" "mapme --ownership" \
+           "mapme owns an ownership mapping mode (not a separate skill)"
+assert_has "../skills/mapme/SKILL.md" "mapme --refresh" \
+           "mapme owns a bounded refresh mode"
+assert_has "../skills/mapme/SKILL.md" "Evidence classification" \
+           "mapme classifies every material claim (VERIFIED/INFERRED/UNKNOWN/STALE/CONTRADICTION)"
+assert_has "../skills/mapme/SKILL.md" "ARCHITECTURAL DEBT" \
+           "mapme distinguishes architectural debt (stated-vs-actual) from documentation drift"
+assert_has "../skills/mapme/SKILL.md" "DOCUMENTATION DRIFT" \
+           "mapme names documentation drift as distinct from debt"
+assert_has "../skills/mapme/SKILL.md" "Do not automatically convert the current structure" \
+           "mapme refuses to promote current structure into desired architecture (no blessing drift)"
+assert_has "../skills/mapme/SKILL.md" "POSSIBLY STALE" \
+           "mapme surfaces staleness instead of pretending a map is current"
+assert_has "../skills/mapme/SKILL.md" "GENERATED VIEW" \
+           "mapme output is a generated view, never canonical state"
+assert_has "../skills/mapme/SKILL.md" "flag it, never fix it" \
+           "mapme keeps the flag-never-fix stance across all modes"
+assert_absent "../skills/mapme/SKILL.md" "speckit" \
+           "mapme names no external tool"
+
 # Prototype — sanctioned, but never a route to a tick.
 assert_has "../skills/prototype/SKILL.md" "**MAY NEVER** satisfy production implementation or release criteria" \
            "prototype output can never satisfy production/release criteria"
