@@ -32,11 +32,8 @@ trust-focused toolkit quietly stops being trustworthy.
 | Work-tier recommendation is reproducible from its signals; an override is recorded | **Deterministic** — `classify-work.sh` (+ human selection) |
 | A REQ/OBJ defined and active in the spec that no phase plans is surfaced (orphan) | **Deterministic — advisory** — `requirements_orphans` via `trace-requirements.sh` |
 | Plan freshness: baseline is still an ancestor of HEAD; referenced files/ids resolve | **Deterministic** — `check-plan-freshness.sh` (`--strict` fails; an invalidated plan may not keep a prior PASS) |
-| Enforcement-ledger structure: each claim names a source + mechanism; a DEFERRED row has a real trigger; DETERMINISTIC strength is not sat on advisory prose | **Deterministic** — `lint-enforcement.sh` (never regenerated from the code graph) |
 | Evidence carries `schema_version 2` (v1 fields kept); an unknown version fails closed; a summary cannot override the exit-derived status | **Deterministic** — `test-evidence.sh` + `tick.sh` schema gate |
-| A Blocking UAT item that is FAILED/BLOCKED blocks a release; a DEFERRED item is justified | **Deterministic + human** — `check-uat.sh --strict` (never bypasses evaluator/evidence/tick) |
 | A validator never executes its input and never mutates it | **Deterministic** — `test-control-plane-security.sh` |
-| A ledger row's *strength* is honest (advisory prose is not called enforced) | **Model + human** — evaluator + review |
 | A map claim is VERIFIED vs INFERRED vs UNKNOWN; stated-vs-actual is honest; current structure is not blessed as intended | **Model-dependent** — `mapme` |
 | A plan is coherent, covered, ordered, and owned (pre-mortem: seams, temporal, failure behavior) | **Model-dependent** — evaluator `PLAN_CHECK` (independent; a planner cannot self-approve) |
 | Unexplained unrelated / high-stakes diff scope | **Model-dependent** — evaluator ownership-compliance, on the deterministic phase diff |

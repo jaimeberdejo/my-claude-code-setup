@@ -191,15 +191,23 @@ assert_has "../skills/mapme/SKILL.md" "operational (logical) ownership" \
 assert_has "../skills/mapme/SKILL.md" "OWNED | SHARED | UNOWNED" \
            "mapme ownership component classifications present"
 
-# Enforcement ledger (v2.14.0) — docs/ENFORCEMENT.md maps claims → enforcement or explicit advisory.
-# It is additive, never regenerated from the current code graph (that blesses drift), and it never ticks
-# or grants permission. lint-enforcement.sh validates its structure; these pin the governing rules.
-assert_has "scripts/lint-enforcement.sh" "never regenerated from the current code graph" \
-           "enforcement ledger is additive, never regenerated from the code graph (no blessing drift)"
-assert_has "scripts/lint-enforcement.sh" "does NOT tick" \
-           "enforcement ledger does not tick, and does not grant permission"
-assert_has "scripts/lint-enforcement.sh" "DETERMINISTIC, HOOK-ENFORCED, CI-ENFORCED" \
-           "enforcement ledger documents the strength vocabulary (deterministic distinct from advisory)"
+# Enforcement + UAT ledgers REMOVED in v2.15.0 (see the removal ADR). v2.14.0 shipped two validators
+# with no producer, no template and no caller — reachable only from their own fixtures — while the docs
+# labelled them DETERMINISTIC and "blocks a release". ADR-007's own standard ("revisited only when a real
+# consumer demonstrates the need") plus three real consumer repos showing zero uptake made deletion, not
+# wiring, the consistent answer. These pin the removal: speculative infrastructure does not creep back
+# without a fresh decision, and no doc may claim a gate that no longer exists.
+for gone in scripts/lint-enforcement.sh scripts/check-uat.sh scripts/test-enforcement.sh scripts/test-uat.sh; do
+  if [ -e "$ROOT/$gone" ]; then
+    bad "$gone was removed in v2.15.0 but exists again — reinstating it needs a fresh ADR, not a revert"
+  else
+    ok "$gone stays removed (no producer, no caller — ADR-007 standard)"
+  fi
+done
+assert_absent "../README.md" "check-uat" \
+           "README claims no UAT release gate (the validator is gone)"
+assert_absent "../docs/dev/AUTHORING.md" "lint-enforcement.sh" \
+           "the guarantee table claims no enforcement-ledger gate (the validator is gone)"
 
 # Evaluator PLAN_CHECK + pre-mortem (v2.14.0) — the SAME independent evaluator gains a second mode. No new
 # agent, no second evaluator. IMPLEMENTATION_REVIEW keeps the two-axis PASS/NEEDS_WORK contract that
@@ -276,13 +284,9 @@ assert_has "scripts/tick.sh" "evidence schema gate" \
 assert_has "scripts/test-evidence.sh" "cannot override" \
            "a redacted, bounded summary can never override the real exit status"
 
-# Lightweight UAT + gap planning (v2.14.0) — ONE canonical docs/UAT.md, tier-dependent. A blocking failure
-# blocks a release but never bypasses the evaluator/evidence/tick. Corrections are bounded planner gap
-# plans that cite the failed item, classify the cause, and never defer failed required work to ship.
-assert_has "scripts/check-uat.sh" "bypasses the evaluator" \
-           "UAT may block a release but never bypasses the evaluator, evidence, or tick.sh"
-assert_has "scripts/check-uat.sh" "NOT_TESTED | PASSED | FAILED | BLOCKED | DEFERRED" \
-           "UAT status vocabulary is documented"
+# Gap planning (v2.14.0, retained) — the UAT ledger it once cited is gone (v2.15.0), but bounded
+# correction planning stands on its own: a phase still fails downstream via missing evidence, an
+# evaluator NEEDS_WORK, an ownership violation, or an invalidated stale plan.
 assert_has ".claude/agents/planner.md" "Gap planning" \
            "planner produces bounded gap/correction plans"
 assert_has ".claude/agents/planner.md" "smallest coherent correction" \

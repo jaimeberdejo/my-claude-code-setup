@@ -147,7 +147,7 @@ Apply the **deletion test** (defined once, in `module-design`) to anything you s
 Classify each friction finding **Strong** · **Worth exploring** · **Speculative** and report them with the
 map. Keep the doc to one page — at most, the Strong ones inform "Where the risk lives". Then stop:
 **flagging is the deliverable.** Anything worth acting on becomes a design session (`design-twice`), a
-roadmap phase (`milestone`), or an enforcement-ledger row (`docs/ENFORCEMENT.md`) — never an edit you make
+roadmap phase (`milestone`) — never an edit you make
 while mapping.
 
 ## Guardrails

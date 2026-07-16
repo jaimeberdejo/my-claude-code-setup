@@ -48,11 +48,9 @@ TESTS=(
   test-doctor.sh
   test-lint.sh
   test-requirements.sh
-  test-enforcement.sh
   test-models.sh
   test-classify-work.sh
   test-stale-plan.sh
-  test-uat.sh
   test-diagnose.sh
   test-control-plane-security.sh
   test-sandbox.sh

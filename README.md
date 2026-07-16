@@ -213,12 +213,15 @@ unchanged). Full reference: `jaimitos-os/toolkit-docs/CONTROL-PLANE.md`.
   normally prevent TINY.
 - **Brownfield & ownership mapping** — bounded modes of the `mapme` skill (`--brownfield`, `--ownership`,
   `--refresh`), tagging every claim VERIFIED/INFERRED/UNKNOWN and comparing stated vs actual architecture.
-- **Enforcement ledger** — `docs/ENFORCEMENT.md` maps architectural claims to their enforcement (or an
-  explicit advisory label); validated by `jaimitos-os/scripts/lint-enforcement.sh`.
-- **Evaluator PLAN_CHECK + pre-mortem** — a fresh, read-only plan review before execution; `check-plan-freshness.sh`
-  invalidates a stale plan's prior approval.
-- **Evidence schema 2, UAT & gap planning** — richer commit-bound evidence; `check-uat.sh` blocks a release
-  on a failed blocking acceptance item (never bypassing the evaluator, evidence, or `tick.sh`).
+- **Evaluator PLAN_CHECK + pre-mortem** — a fresh, read-only plan review before execution.
+  `check-plan-freshness.sh --strict` reports deterministic staleness signals; a plan that fails them may
+  not keep a prior PASS. Running it is the planner's step, not an automatic gate.
+- **Evidence schema 2 & gap planning** — richer commit-bound evidence; a bounded correction plan cites the
+  failed id, classifies the cause, and requires fresh evidence.
+
+The enforcement and UAT ledgers shipped in v2.14.0 were **removed in v2.15.0**: both had a validator but no
+producer, no template and no caller, so they could only ever run against their own fixtures. See the
+removal ADR in `docs/decisions/`.
 
 `scripts/tick.sh` stays the sole completion authority; the four conditional agents stay four; no Spec Kit /
 Yojana / Sutra runtime.

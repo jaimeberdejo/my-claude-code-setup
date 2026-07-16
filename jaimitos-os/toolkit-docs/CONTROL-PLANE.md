@@ -62,15 +62,7 @@ None grants implementation permission or completes work.
   ownership-compliance check diffs actual scope against the plan; unexplained unrelated/high-stakes
   modifications block PASS.
 
-## 5. Enforcement ledger
-`docs/ENFORCEMENT.md` (ADR-004), created only when a repo has claims worth governing: each material claim
-maps to a mechanism or an explicit advisory label. `scripts/lint-enforcement.sh` validates structure
-(id/claim/source/enforcement/strength/status/trigger; a DEFERRED row needs a concrete trigger;
-DETERMINISTIC strength can't sit on advisory enforcement). Strengths: DETERMINISTIC | HOOK-ENFORCED |
-CI-ENFORCED | MODEL-DEPENDENT | HUMAN-DEPENDENT | ADVISORY | DEFERRED. Additive only; never regenerated
-from the code graph; never ticks or grants permission.
-
-## 6. Evaluator PLAN_CHECK + pre-mortem
+## 5. Evaluator PLAN_CHECK + pre-mortem
 The same independent, edit-disabled evaluator gains a second mode (ADR-005). `IMPLEMENTATION_REVIEW` is the
 existing two-axis grade (`PASS` / `NEEDS_WORK`, gated by `record-grade.sh`). `PLAN_CHECK` is a fresh,
 read-only plan review before execution, with a checklist **plus a pre-mortem** ("imagine it shipped as
@@ -79,20 +71,20 @@ risks, failure behavior, verification, and ownership/enforcement. Verdict `PASS 
 FAIL` on a separate channel `record-grade.sh` never reads; `FAIL` returns the plan to the planner and
 blocks execution. `/phase` runs it after planning for STANDARD/DEEP/supervised phases; TINY skips it.
 
-## 7. Stale-plan revalidation
+## 6. Stale-plan revalidation
 A STANDARD/DEEP plan records its baseline and a `## Assumption revalidation` section (ADR-006).
 `scripts/check-plan-freshness.sh` gives deterministic signals: baseline still an ancestor of HEAD,
 referenced files present/changed, cited REQ/AC/OBJ/ENF ids still resolve. Hard signals fail `--strict` —
 an invalidated plan **may not keep a prior PASS**. A material change needs a fresh PLAN_CHECK; a scope
 change needs user approval; a small path move may be corrected in-plan with a note.
 
-## 8. Native traceability through tasks and evidence
+## 7. Native traceability through tasks and evidence
 R3 wired `_requirements.sh` (references resolve to definitions). R4 adds the reverse — `requirements_orphans`
 (a REQ/OBJ defined and active in the spec that no phase plans) — and `scripts/trace-requirements.sh`, a
 report GENERATED from the canonical SPEC + ROADMAP (never a hand-maintained spreadsheet). Structure is
 deterministic; meaning stays evaluator-reviewed.
 
-## 9. Generic evidence — schema_version 2
+## 8. Generic evidence — schema_version 2
 `test-evidence.sh` emits `schema_version 2`: every v1 field kept verbatim (so `tick.sh` is unchanged) plus
 evidence_id, cwd, timestamps, duration, classification, requirement refs, warnings, skipped, a bounded +
 secret-redacted summary, redacted flag, and an advisory recomputable `content_hash`. `passed` is always
@@ -100,16 +92,7 @@ exit-derived, so a summary can never override the real status. `tick.sh` gates o
 1–2 understood; unknown fails closed). No ecosystem adapter registry (ADR-007) — the generic runner stays
 authoritative.
 
-## 10. Lightweight UAT + gap planning
-One canonical `docs/UAT.md`, tier-dependent (TINY omits; STANDARD when human acceptance differs from
-automated tests; DEEP/high-stakes when relevant). `scripts/check-uat.sh` validates it and blocks a release
-on a Blocking=YES item that is FAILED/BLOCKED (a DEFERRED item must be justified). UAT may block a release
-but **never bypasses** the evaluator, the evidence gate, or `tick.sh`. Corrections are bounded **planner
-gap plans**: cite the failed id, classify the cause, propose the smallest correction, require fresh
-evidence + a fresh PLAN_CHECK when sequencing/ownership changes, never rewrite completed history, never
-defer failed required work to ship.
-
-## 11. Strengthened `diagnose`
+## 9. Strengthened `diagnose`
 Already loop-first with ranked hypotheses, tagged+removed instrumentation, and bisection/differential
 methods; R4 adds the flaky discipline — record the measured reproduction rate as a baseline, and one green
 run is never resolution (re-run the loop many times post-fix and record the new rate).

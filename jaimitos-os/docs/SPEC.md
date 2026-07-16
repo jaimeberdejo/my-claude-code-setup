@@ -70,7 +70,7 @@ price within ±15% of the median of comparable sold listings.">
      - Failure modes + observability: <...>
      - Threat model / security + privacy: <...>
      - Performance + compatibility: <...>
-     - Deferred decisions + risks/mitigations + enforcement implications (see docs/ENFORCEMENT.md): <...> -->
+     - Deferred decisions + risks/mitigations: <...> -->
 
 ## Open questions
 <Legitimate decisions not made yet. A permanent section, not scratch: an unanswered

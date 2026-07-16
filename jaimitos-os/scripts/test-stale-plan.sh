@@ -147,15 +147,15 @@ RC_ROOT=$?
 [ "$RC_SUB" -le 1 ] && pass "the subdirectory run actually resolved the plan (rc<=1, not a usage error)" \
                     || fail "subdirectory run did not resolve the plan (rc=$RC_SUB)"
 
-# check-uat.sh and lint-enforcement.sh both document "Baseline commit: <sha>" as canonical, but the
-# old skip class [^0-9a-f]* could not cross the "c" of "commit" (c is a hex digit), so that label
-# never parsed and freshness fell back to "undetermined" — a soft signal, exit 0.
+# "Baseline commit: <sha>" is a label used in the wild, but the old skip class [^0-9a-f]* could not
+# cross the "c" of "commit" (c is a hex digit), so that label never parsed and freshness fell back
+# to "undetermined" — a soft signal, exit 0.
 fresh
 printf '# Plan\n\nBaseline commit: %s\n\nTask: modify `src/foo.sh` to satisfy REQ-001 (AC-001).\n' "$BASE" > docs/plans/bc.md
 BC_OUT=$(bash "$CHK" docs/plans/bc.md 2>&1)
 printf '%s\n' "$BC_OUT" | grep -q "no baseline recorded" && \
   fail "'Baseline commit:' label did not parse (freshness silently undetermined)" || \
-  pass "'Baseline commit:' parses as a baseline label (as check-uat/lint-enforcement document it)"
+  pass "'Baseline commit:' parses as a baseline label"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All check-plan-freshness.sh tests passed."; exit 0

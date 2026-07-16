@@ -4,8 +4,8 @@
 # whether a change MATTERS stays the planner's `## Assumption revalidation` section + a fresh PLAN_CHECK.
 #
 # It answers, deterministically: is the plan's baseline still an ancestor of HEAD? do the files the plan
-# names still exist, and have any of them changed since the baseline? do the REQ/AC/OBJ/ENF ids the plan
-# cites still resolve in docs/SPEC.md / docs/ENFORCEMENT.md? A "hard" staleness (baseline diverged, an
+# names still exist, and have any of them changed since the baseline? do the REQ/AC/OBJ ids the plan
+# cites still resolve in docs/SPEC.md? A "hard" staleness (baseline diverged, an
 # invalid baseline, or a cited id vanished) fails under --strict — the plan may NOT keep a prior PASS.
 # A "soft" signal (a referenced file missing or merely changed) is surfaced for revalidation but does not
 # fail — path roots vary across plans and a moved file may be corrected in the plan with a note.
@@ -34,8 +34,8 @@ soft() { printf '  ~ %s\n' "$1"; warn=$((warn+1)); }
 
 # --- baseline ---------------------------------------------------------------
 if [ -z "$BASE" ]; then
-  # The label may be "Plan created at:", "Baseline:" or "Baseline commit:" — check-uat.sh and
-  # lint-enforcement.sh both document the last one as canonical. The old skip class [^0-9a-f]* could
+  # The label may be "Plan created at:", "Baseline:" or "Baseline commit:" — all three are used in
+  # the wild. The old skip class [^0-9a-f]* could
   # not cross the "c" of "commit" (c is a hex digit), so "Baseline commit: <sha>" never matched and
   # freshness silently fell back to "undetermined" (a soft signal, exit 0). Allow any non-hex-or-space
   # run, then require a word-boundaried sha.
@@ -93,21 +93,20 @@ $FILES
 EOF
 fi
 
-# --- referenced ids (REQ/AC/OBJ resolve in SPEC; ENF resolves in ENFORCEMENT) ---
+# --- referenced ids (REQ/AC/OBJ resolve in SPEC) -----------------------------
 # "A removed cited id" is one of the three HARD blockers, so this must fail CLOSED. Two ways it used
 # to fail open: (1) `if [ -f "$tgt" ]` skipped the check entirely when the target was absent — so
 # DELETING docs/SPEC.md, the most complete form of "the requirement was removed", produced a
 # maximally confident all-clear; (2) $tgt was a CWD-relative literal, so the same plan passed from a
 # subdirectory and failed from the root. Resolve from the repo root, and treat unverifiable as unverified.
+# ENF-### ids are gone with the enforcement ledger (v2.15.0): that branch could never resolve, because
+# docs/ENFORCEMENT.md had no producer in any repo — it was dead code that only ever skipped.
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || printf '.')
-IDS=$(grep -oE '\b(REQ|AC|OBJ|ENF)-[0-9]{3}\b' "$PLAN" 2>/dev/null | sort -u || true)
+IDS=$(grep -oE '\b(REQ|AC|OBJ)-[0-9]{3}\b' "$PLAN" 2>/dev/null | sort -u || true)
 if [ -n "$IDS" ]; then
   while IFS= read -r id; do
     [ -n "$id" ] || continue
-    case "$id" in
-      ENF-*) rel="docs/ENFORCEMENT.md" ;;
-      *)     rel="docs/SPEC.md" ;;
-    esac
+    rel="docs/SPEC.md"
     tgt="$ROOT/$rel"
     if [ -f "$tgt" ]; then
       grep -qF "$id" "$tgt" || bad "plan cites $id but it no longer resolves in $rel (removed or superseded)"
