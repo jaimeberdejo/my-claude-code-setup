@@ -53,6 +53,7 @@ TESTS=(
   test-classify-work.sh
   test-stale-plan.sh
   test-uat.sh
+  test-diagnose.sh
   test-sandbox.sh
   test-sync.sh
   test-test-cmd.sh

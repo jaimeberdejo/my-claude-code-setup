@@ -60,7 +60,8 @@ Ways to construct one, in roughly this order:
 7. **Property / fuzz loop** — "sometimes wrong output"? Run 1000 random inputs, find the mode.
 8. **Bisection harness** — bug appeared between two known states? Automate "boot at X, check"
    so `git bisect run` can drive it.
-9. **Differential loop** — same input through old vs new version (or two configs), diff outputs.
+9. **Differential loop** — same input through two variants, diff outputs: old vs new build, config A/B,
+   dataset A/B, or query-plan A/B. The difference between the two runs localises the cause.
 10. **HITL script** — last resort: a human must click, so drive *them* with
     `scripts/hitl-loop.template.sh` (in this skill's dir) and parse the captured answers.
 
@@ -69,6 +70,8 @@ exact symptom, not "didn't crash"), more deterministic (pin time, seed RNG, free
 A 2-second deterministic loop is a debugging superpower.
 **Non-deterministic bugs:** the goal is a *higher reproduction rate*, not elegance — loop the
 trigger 100×, parallelize, add stress, narrow timing windows. 50% flake is debuggable; 1% is not.
+**Record the measured rate** (e.g. 37/1000) — it is your baseline, and the only way to later prove the
+fix worked: a flaky bug is never resolved by one green run.
 **Genuinely can't build one?** Stop and say so, list what you tried, and ask for a reproducing
 environment, a captured artifact (HAR, log dump, recording), or temporary instrumentation.
 Do NOT hypothesize without a loop.
@@ -102,6 +105,9 @@ Then: failing test → fix → green → re-run the Phase 1 loop on the original
 ## Phase 6 — Cleanup + post-mortem
 Original repro green · regression test in (or seam absence documented) · all `[DEBUG-…]` lines
 removed · throwaway harnesses deleted · the winning hypothesis stated in the commit message.
+**For a flaky/non-deterministic bug, one green run is NOT resolution** — re-run the Phase 1 loop many
+times after the fix and record the new rate (target 0 over a count comparable to the pre-fix repro
+baseline). A single pass proves nothing when the failure was intermittent to begin with.
 If the fix rested on a real design decision (or revealed one), record it with the `adr` skill —
 including the alternative rejected.
 
