@@ -8,6 +8,46 @@ uses [Semantic Versioning](https://semver.org/).
 
 _Nothing yet._
 
+## [2.13.0] — 2026-07-16
+
+Native requirement traceability — the spec and plan sides of the chain v2.12.0 started. Stable
+`REQ/AC/OBJ` ids now flow `docs/SPEC.md` → roadmap `Requirements:` → plan tasks → the conditional
+evaluator, validated deterministically for structure. Opt-in, inert by default, and never required for
+tiny work; no external tool, no second spec/task/completion tree.
+
+### Added — native id conventions on the spec and plan sides
+- `docs/SPEC.md` gains an **optional** `## Requirements (optional — REQ/AC)` section: `REQ-###`
+  (a requirement), `AC-###` (an acceptance criterion, unique across the whole spec), `OBJ-###`
+  (a maintenance objective), each with a `Status:`. Tiny specs keep using only the measurable Success
+  criterion. `[NEEDS CLARIFICATION]` keeps a requirement out of `Approved`.
+- `to-spec` is the **sole owner** of native id assignment and preservation at spec close (no renumber on
+  reorder, no silent recycle); `grill` only discovers requirement candidates during the interview.
+- The `planner` maps each task to the `REQ/AC/OBJ` it advances — only when the phase declares a
+  `Requirements:` block; tiny/mechanical phases skip it. An external id (`FR-001`, `JIRA-1234`,
+  `REQ-AR-001`) is accepted when the source defines it; core hard-codes no external prefix.
+
+### Added — deterministic id validation
+- New shared lib `.claude/lib/_requirements.sh` owns id semantics; `scripts/lint-roadmap.sh` calls it
+  only when a phase carries a `Requirements:` line. It validates **structure only**: well-formed and
+  unique ids (`AC` globally), roadmap refs that resolve to `docs/SPEC.md` for spec-sourced phases, and
+  no blocking `[NEEDS CLARIFICATION]` inside an `Approved` requirement. Advisory by default; `--strict`
+  fails. It never claims a requirement is *satisfied* — that stays the evaluator's model-dependent job.
+
+### Guarantees
+- **Deterministic:** id well-formedness + uniqueness, reference resolution, and the Approved/clarification
+  rule (`_requirements.sh` via `lint-roadmap.sh`). **Model-dependent:** whether a requirement is genuinely
+  satisfied (the evaluator, only when a phase declares `Requirements:`). `docs/dev/AUTHORING.md` records
+  the split; no model-dependent guarantee is described as enforced.
+- **Unchanged:** `scripts/tick.sh` remains the sole completion gate; the evaluator's verdict contract,
+  isolation, and the v2.12.0 conditional traceability behavior are byte-for-byte untouched (no cosmetic
+  edit). Requirement metadata adds no open tasks and cannot bypass the gate.
+- **Backward compatible & lean:** a spec with no ids, or a phase with no `Requirements:` block, behaves
+  exactly as before. Always-loaded context is unchanged (5035 B) — the guidance rides skill/agent bodies,
+  not their descriptions. Why native and not Spec Kit:
+  `docs/decisions/ADR-001-native-requirement-traceability.md`.
+- **Verified:** 21/21 guard suites green on macOS (Bash 3.2 / BSD) and non-root Linux (mawk 1.3.4),
+  including the new requirement-id validation.
+
 ## [2.12.0] — 2026-07-16
 
 Requirement traceability, as a core capability — grade a phase against the external requirement ids
