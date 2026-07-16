@@ -115,6 +115,25 @@ assert_has "../skills/roadmap/SKILL.md" "Sources:" \
 assert_absent "../skills/roadmap/SKILL.md" "speckit" \
            "roadmap skill's requirement-id guidance names no external tool"
 
+# Progressive specification depth (v2.14.0) — ONE spec template, tier-scaled. TINY stays compact,
+# STANDARD uses native REQ/AC, DEEP adds the risk/architecture fields; a spec with no tier: line is
+# unchanged/legacy. The tier is content-derived-readiness-neutral (never a gate). Pinned so the single
+# template can't fork into competing per-tier formats, and so the blocking-clarification rule survives.
+assert_has "docs/SPEC.md" "TINY | STANDARD | DEEP" \
+           "SPEC frontmatter names the three tiers (tier: field, informational + overridable)"
+assert_has "docs/SPEC.md" "DEPTH BY TIER" \
+           "SPEC documents how depth scales with tier (one template, not three formats)"
+assert_has "docs/SPEC.md" "## Deep design (DEEP tier only" \
+           "SPEC carries the DEEP-tier deep-design section (deletable for TINY/STANDARD)"
+assert_has "docs/SPEC.md" "BLOCKING clarification" \
+           "SPEC distinguishes blocking [NEEDS CLARIFICATION] from a non-blocking deferred question"
+assert_absent "docs/SPEC.md" "speckit" \
+           "SPEC tier guidance names no external tool"
+assert_has "../skills/to-spec/SKILL.md" "Match depth to the spec's" \
+           "to-spec matches close depth to the spec tier (sole id owner, unchanged)"
+assert_has "../skills/grill/SKILL.md" "Match interview depth to the spec's" \
+           "grill matches interview depth to the spec tier (discovers, does not mint ids)"
+
 # Prototype — sanctioned, but never a route to a tick.
 assert_has "../skills/prototype/SKILL.md" "**MAY NEVER** satisfy production implementation or release criteria" \
            "prototype output can never satisfy production/release criteria"

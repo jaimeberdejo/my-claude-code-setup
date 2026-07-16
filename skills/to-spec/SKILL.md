@@ -15,8 +15,8 @@ session with no interview in context must be able to close a spec by reading onl
    criterion) or **degraded to a Non-goal with its reason.** A spec is not ready while this
    section has unresolved entries.
 2. **Assign and preserve requirement ids — you are the sole id owner.** *Only if the spec's
-   `## Requirements` section is in use — tiny/local specs skip this and keep just the measurable
-   Success criterion.* Give each settled requirement a stable `REQ-###` and each acceptance
+   `## Requirements` section is in use — a `tier: TINY` spec skips this and keeps just the measurable
+   Success criterion; STANDARD and DEEP specs use it.* Give each settled requirement a stable `REQ-###` and each acceptance
    criterion an `AC-###` (globally unique across the whole spec); use `OBJ-###` for a maintenance
    objective. **Preserve every already-approved id** — never renumber on reorder, never silently
    recycle a removed id (mark it `Superseded`/`Rejected` and reference its replacement). An external
@@ -42,6 +42,14 @@ session with no interview in context must be able to close a spec by reading onl
 Fill any still-empty `What & why`. A **measurable** success criterion is mandatory — if the
 document doesn't have one, ask for it (that, the Open questions, and the seams are the only
 questions this skill may ask; it does not re-interview).
+
+**Match depth to the spec's `tier:`** (set from `scripts/classify-work.sh`; override it if the work
+warrants). A `TINY` spec closes on the compact core — What & why, Success criterion, In scope, Non-goals —
+and REQ/AC ids stay optional. A `DEEP` spec must also have its `## Deep design` section filled
+(architecture alternatives, data model, migration/rollback, failure modes, threat model, observability)
+or that section deleted because the work genuinely isn't DEEP — never left as an empty template. A tier
+is a recommendation, not a gate: readiness is still content-derived (measurable criterion + no unresolved
+*blocking* clarification), so a stale tier can never close or block a spec on its own.
 
 ## Close
 When Open questions is empty, the seams are written, and a measurable criterion exists, set

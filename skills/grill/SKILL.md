@@ -29,6 +29,11 @@ Grilling a phase only ever touches a **not-yet-started** phase — never a ticke
    answers it, look it up. Only genuine choices go to the user.
 4. **Dependency order.** Ask the questions that unblock others first (data model before endpoints,
    success criterion before phasing).
+5. **Match interview depth to the spec's `tier:`** (set from `scripts/classify-work.sh`). A `TINY`
+   spec needs only scope + a measurable criterion + non-goals — do not manufacture requirement
+   hierarchies for it. A `DEEP` spec earns the deeper branches: architecture alternatives, data model,
+   failure modes, migration/rollback, threat model — the fields the `## Deep design` section holds.
+   The tier is a guide to proportion, never a reason to skip a genuine open question.
 
 ## Where each closed decision goes (compose — don't reimplement)
 Write only when a decision **closes**, never when a question is merely asked:
