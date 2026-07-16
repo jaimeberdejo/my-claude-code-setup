@@ -117,6 +117,81 @@ requires a non-empty `permissions.deny`; guard the `CLAUDE.md` byte budget.
 
 ---
 
+## Upstream provenance
+
+Release 4 adopts **concepts only** — never runtimes, dependencies, agents, task databases, or vendored
+text. Nothing here is fetched at runtime; the toolkit stays offline and Git/file-native. Consistent with
+`integrations/README.md`, **every R4 adoption is `concept-only`** (the idea was taken; no upstream text
+was used), so **no new entry is added to `integrations/upstreams.lock.json`** — that file is reserved for
+SHA-pinned, materially-consulted upstream *text*, and none of the R4 sources could be honestly SHA-pinned.
+
+### Source availability (honest SHA/license status)
+
+| Source | Local availability | Pinned SHA | License |
+|---|---|---|---|
+| **Vidhi** (`vidhi` + `vidhi-sutra-*`, incl. Sutra / Yojana) | Not vendored; no local clone found | Not pinned — concept-only (not fetchable here) | Unverified |
+| **Open GSD** (`get-shit-done`) | Installed as local skills (`~/.claude/gsd-core` v1.6.1 + 69 `gsd-*` skills); readable, **not a git repo**, not vendored | Not pinned — concept-only (no commit SHA) | Unverified (no `LICENSE` in the install) |
+| **GitHub Spec Kit** | Upstream not cloned; only a downstream consumer present; already rejected as a profile (ADR-001, v2.12.0) | Not pinned — historical reference only | Unverified |
+| **BMAD** (`BMAD-METHOD`) | Not vendored; no local clone found | Not pinned — concept-only (not fetchable here) | Unverified |
+
+Nothing copied or adapted verbatim. No file carries an upstream attribution comment, because no upstream
+text was used — only ideas informed native design.
+
+### Adoption matrix
+
+**Vidhi** (+ `vidhi-sutra-*`) — *concept-only; no SHA pinned*
+
+| Capability | Verdict | Where it lands |
+|---|---|---|
+| Plan pre-mortem ("shipped as written and still failed — why?") | CONCEPT → ADAPT | Evaluator `PLAN_CHECK` (C7): fresh, read-only, verdict on its own channel, never routed to `record-grade.sh` |
+| Plan / diagnose disciplines | CONCEPT → MERGE | Planner checklist + existing `diagnose` (C12); no new authority |
+| Enforcement-ledger (claims → enforcement) | CONCEPT → ADAPT | `docs/ENFORCEMENT.md` + `lint-enforcement.sh` (C6): additive, when-justified, never regenerated from the code graph |
+| Stated-vs-actual architecture classification | CONCEPT → ADAPT | `mapme` `CONFIRMED/ARCHITECTURAL DEBT/DOCUMENTATION DRIFT/UNKNOWN` (C4) |
+| Stale-task / stale-plan revalidation | CONCEPT → ADAPT | Planner `## Assumption revalidation` + `check-plan-freshness.sh` (C8) |
+| Requirement coverage + integration-seam ownership + late-integration risk | CONCEPT → MERGE | R3 REQ/AC spine through tasks/evidence (C9) + Planner `## Change ownership` + `PLAN_CHECK` seam/dependency/temporal checks |
+| Yojana task-state, Sutra runtime, issue-tracker authority, auto `done` | REJECT | Would add a second completion authority + a runtime; `tick.sh` stays the sole `[ ]→[x]` path |
+| Ecosystem paths/DBs, mandatory Rust/Dart tooling | REJECT | R4 is offline, file-native, language-agnostic |
+
+**Open GSD** (`get-shit-done`, local skills v1.6.1) — *concept-only; no SHA pinned; license unverified*
+
+| Capability | Verdict | Where it lands |
+|---|---|---|
+| Brownfield onboarding + codebase mapping | CONCEPT → MERGE | `mapme --brownfield` (C4): bounded modes in the one skill; outputs are GENERATED VIEW |
+| Context hygiene / minimal-orchestrator context | CONCEPT → ADAPT | Tier-conditional loading (C2/C3): TINY never loads DEEP guidance |
+| Dependency ordering | CONCEPT → ADAPT | Planner integration order + `PLAN_CHECK` dependency check (C7); `docs/DEPENDENCIES.md` as GENERATED VIEW |
+| Lightweight UAT persistence | CONCEPT → ADAPT | Single canonical `docs/UAT.md` (C11); blocking UAT blocks release but never bypasses evaluator/evidence/tick |
+| Correction / gap planning | CONCEPT → ADAPT | Planner gap-plan behavior (C11): cite failed id, classify cause, smallest correction — not a new skill or autonomous loop |
+| Recovery ideas | CONCEPT → MERGE | Fail-closed recovery notes folded into existing scripts; no general repair framework |
+| Full command surface + full `.planning/` state hierarchy | REJECT | Would become a second roadmap+state authority; ROADMAP+STATE+tick stay the sole spine |
+| Mandatory agent-per-stage; heavy ceremony for small changes | REJECT | The four conditional agents stay four; TINY keeps small work cheap |
+
+**GitHub Spec Kit** — *historical reference only; no SHA pinned; already rejected as a profile (ADR-001, v2.12.0)*
+
+| Capability | Verdict | Where it lands |
+|---|---|---|
+| Requirement structure + stable IDs | CONCEPT (prior art) → NATIVE | R3 native `REQ/AC/OBJ`; extended through tasks/evidence in R4 (C9) |
+| Acceptance criteria | CONCEPT → NATIVE | `AC-###` under the single `SPEC.md` template (C3) |
+| Clarification markers | CONCEPT → ADAPT | Blocking `[NEEDS CLARIFICATION]` prevents progression; non-blocking deferred records reason/owner/resolution/impact (C3) |
+| Success criteria | CONCEPT → MERGE | Tier-conditional spec depth + evaluator coverage checks |
+| Runtime, `/speckit-*` skills, presets, `.specify/`+`specs/`+`tasks.md`, second queue | REJECT (re-confirmed) | ADR-001; `test-docs-invariants.sh` still forbids "speckit"/"spec kit" strings |
+
+**BMAD** (`BMAD-METHOD`) — *concept-only; no SHA pinned*
+
+| Capability | Verdict | Where it lands |
+|---|---|---|
+| Project-size questions | CONCEPT → ADAPT | `classify-work.sh` complexity signals (C2) |
+| Uncertainty questions | CONCEPT → ADAPT | `[NEEDS CLARIFICATION]` / DEEP research + architecture-alternatives fields (C3) |
+| Risk classification | CONCEPT → ADAPT | Classifier escalation signals that block TINY unless override is explicit + recorded (C2); `docs/RISK-MAP.md` as GENERATED VIEW |
+| Stakeholder-impact questions | CONCEPT → MERGE | Ownership concepts (CODEOWNERS / `OWNERSHIP.md` / Planner `## Change ownership`, C5); required reviewers, not personas |
+| Personas, story hierarchies, party mode, role choreography | REJECT | Role theatre with no artifact authority; R4 keeps the single-orchestrator model |
+
+**Verdict legend:** `ADAPT` idea reworked into a native surface · `MERGE` folded into an existing
+capability (no new skill/agent) · `NATIVE` already re-implemented natively upstream of R4 · `REJECT`
+deliberately not adopted, reason given. No text-`COPY` verdicts appear because no upstream text was
+vendored.
+
+---
+
 ## Design (per commit)
 
 Each commit is small, self-contained, and leaves its targeted tests green. Full commit table below.
