@@ -117,8 +117,11 @@ assert_absent "../skills/roadmap/SKILL.md" "speckit" \
 
 # Progressive specification depth (v2.14.0) — ONE spec template, tier-scaled. TINY stays compact,
 # STANDARD uses native REQ/AC, DEEP adds the risk/architecture fields; a spec with no tier: line is
-# unchanged/legacy. The tier is content-derived-readiness-neutral (never a gate). Pinned so the single
-# template can't fork into competing per-tier formats, and so the blocking-clarification rule survives.
+# unchanged/legacy. Precisely: the tier is NOT a gate on READINESS — that stays content-derived, so a
+# stale tier cannot close or block a spec. It IS, however, what /phase consults to decide whether the
+# independent PLAN_CHECK runs, so "never a gate" (pinned here until v2.15.0) was false as written and is
+# not a claim to re-add. Pinned so the single template can't fork into competing per-tier formats, and so
+# the blocking-clarification rule survives.
 assert_has "docs/SPEC.md" "TINY | STANDARD | DEEP" \
            "SPEC frontmatter names the three tiers (tier: field, informational + overridable)"
 assert_has "docs/SPEC.md" "DEPTH BY TIER" \

@@ -44,6 +44,24 @@ the repo; only this findings report and the fixes it drove were committed.
 
 ## Not run (honest)
 
+> **Appended in v2.15.0 by independent review.** This section omitted the release's flagship. Applying
+> its own stated criterion — model-driven behaviour is not exercised by running a script — these belong
+> here too, and did not appear as run *or* not-run:
+>
+> - `NOT RUN — PLAN_CHECK and the integrated pre-mortem` (ADR-005's headline). Equally model-driven,
+>   equally unexercised. Its channel separation was also never tested, and was in fact broken: a
+>   PLAN_CHECK verdict was demonstrably recordable as an implementation grade (fixed in v2.15.0).
+> - `NOT RUN — the evaluator's Axis-A ownership-compliance check`.
+> - `NOT RUN — mapme --ownership / --refresh` (only `--brownfield` was disclosed).
+> - `NOT RUN — planner gap planning`.
+>
+> Also correcting two claims below: "exercised on fixtures and real repos" is true only of the **inert**
+> path on real repos — no consumer had the artifacts, so nothing was validated in the field. And the
+> `pipefail` + `grep -q` SIGPIPE fix recorded below landed in the tests only; the shipped
+> `check-plan-freshness.sh` introduced by the same series still carried the bug, 10/10 fail-open, until
+> v2.15.0. An honest "Not run" section that omits the flagship reads as more verified than it is.
+
+
 - `NOT RUN — a full `mapme --brownfield` map of a large external repo`: mapme is a model-driven skill, not
   a script; a complete brownfield map of an unfamiliar large codebase is a session in itself. The
   brownfield *discipline* (evidence tags, stated-vs-actual, staleness) is exercised as skill prose +

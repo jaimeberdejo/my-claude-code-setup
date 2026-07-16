@@ -25,13 +25,16 @@ trust-focused toolkit quietly stops being trustworthy.
 | Maintainer-only components are excluded from every install path | **Deterministic** — `install-smoke.sh` (negative assertions) + source-root check |
 | An agent declares an output contract; no silently-ignored hyphenated keys; the model value is real | **Deterministic** — `test-agents.sh` |
 | Every agent definition is covered by `GATE_CONTROL_FILES` | **Deterministic** — `test-agents.sh` |
-| Always-loaded context stays inside budget | **Deterministic** — `test-skills.sh` (per-description + total cap) |
+| Always-loaded context stays inside budget | **Deterministic** — `test-skills.sh` (model-invoked skill descriptions: 500 B each / 6000 B total) + `test-agents.sh` (agent descriptions: 500 B each / 2000 B total). `CLAUDE.md` itself is **not** byte-capped — that one is human-dependent. |
 | Provenance schema is valid and its cited files exist | **Deterministic** — `test-skills.sh` |
 | The discipline is *stated* in the skill (red-for-the-right-reason, no speculative loops, …) | **Deterministic** — `test-docs-invariants.sh` (greps the prose; proves the rule is written, **not** that it was obeyed) |
 | Requirement ids are well-formed and unique (`AC` globally); a phase's `Requirements:` refs resolve to `docs/SPEC.md`; an `Approved` requirement carries no blocking `[NEEDS CLARIFICATION]` | **Deterministic** — `_requirements.sh` via `lint-roadmap.sh` (advisory; `--strict` fails). Structure only — never that a requirement is *satisfied* |
-| Work-tier recommendation is reproducible from its signals; an override is recorded | **Deterministic** — `classify-work.sh` (+ human selection) |
+| Work-tier recommendation is reproducible from its signals | **Deterministic** — `classify-work.sh` (same flags → same tier; unknown flag / bad value → exit 2) |
+| An override records WHY it differs from the recommendation | **Human-dependent** — `classify-work.sh` warns on a reasonless override but still exits 0, and nothing checks the reason reached `docs/SPEC.md`. The tier field itself is never validated against the classifier. |
 | A REQ/OBJ defined and active in the spec that no phase plans is surfaced (orphan) | **Deterministic — advisory** — `requirements_orphans` via `trace-requirements.sh` |
-| Plan freshness: baseline is still an ancestor of HEAD; referenced files/ids resolve | **Deterministic** — `check-plan-freshness.sh` (`--strict` fails; an invalidated plan may not keep a prior PASS) |
+| Plan freshness (HARD): baseline is a valid commit and still an ancestor of HEAD; every cited REQ/AC/OBJ id resolves in `docs/SPEC.md` (an absent SPEC fails closed) | **Deterministic** — `check-plan-freshness.sh --strict` exits 1 |
+| Plan freshness (SOFT): a referenced file is missing or changed since the baseline | **Advisory** — surfaced for revalidation, never fails `--strict` (path roots vary; hard-flagging produced dozens of false positives in v2.14.0's own dogfood) |
+| An invalidated plan does not keep a prior PLAN_CHECK PASS | **Model + human** — no PLAN_CHECK verdict is stored anywhere, so nothing can mechanically revoke one; running the check before execution, and honouring it, is the planner's and the operator's discipline |
 | Evidence carries `schema_version 2` (v1 fields kept); an unknown version fails closed; a summary cannot override the exit-derived status | **Deterministic** — `test-evidence.sh` + `tick.sh` schema gate |
 | A validator never executes its input and never mutates it | **Deterministic** — `test-control-plane-security.sh` |
 | A map claim is VERIFIED vs INFERRED vs UNKNOWN; stated-vs-actual is honest; current structure is not blessed as intended | **Model-dependent** — `mapme` |

@@ -4,8 +4,11 @@ Release 4 makes Jaimitos **proportionate to risk**: small work stays cheap, unfa
 work gets depth — while the deterministic completion spine (`scripts/tick.sh`) stays the sole authority,
 the four conditional agents stay four, and no external runtime (Spec Kit / Yojana / Sutra) is required.
 Every capability below lands inside an *existing* owner or as a small, inspectable, offline script that
-loads only when relevant. Nothing here adds always-loaded context: `jaimitos-os/CLAUDE.md` is byte-for-byte
-unchanged (3140 B).
+loads only when relevant. `jaimitos-os/CLAUDE.md` is byte-for-byte unchanged (3140 B) — but that is not
+the same as "zero always-loaded cost", which this document used to claim three rows above a table that
+contradicted it. v2.14.0 added **+412 B** always-loaded (skill descriptions +138, the evaluator's agent
+description +274); v2.15.0 adds +15 B on top. Small, and worth it — but measured and stated, because a
+budget dies by never being totalled.
 
 This chain — R3's traceability spine, now complete in both directions — is what everything hangs off:
 
@@ -126,12 +129,19 @@ rewritten.
 | Surface | Cost | Loads when |
 |---|---|---|
 | `CLAUDE.md` (always-loaded) | **UNCHANGED — 3140 B** | every turn |
-| Skill descriptions (model-invoked) | 5173 B / 6000 B (+138 B, mapme only) | every turn |
+| Skill descriptions (model-invoked) | 5173 B / 6000 B (v2.14.0: +138 B, mapme only) | every turn |
+| **Agent descriptions** | **1215 B / 2000 B** (v2.14.0: +274 B, evaluator; v2.15.0: +15 B) | every turn |
 | Classifier / spec-depth guidance | LOW | authoring a spec/roadmap |
 | `mapme` modes | MEDIUM (brownfield/DEEP: HIGH) | invoking `mapme` |
 | PLAN_CHECK + pre-mortem | MEDIUM | a STANDARD/DEEP plan check |
-| UAT / enforcement-ledger detail | LOW | when the artifact exists |
 | Difficult debugging (`diagnose`) | MEDIUM–HIGH | invoking `diagnose` |
+
+**Total always-loaded: 9528 B** (3140 + 5173 + 1215). v2.13.0 was 9101 B; v2.14.0 added +412 B and
+v2.15.0 +15 B. Both description budgets are CI-enforced and measured the same way (`awk print | wc -c`,
+which counts one trailing byte per description — measure it any other way and you will land ~20 B low
+and think the table is wrong). The agent row is new in v2.15.0: v2.14.0's table had a row for skill
+descriptions and none for agents, which is how the largest always-loaded increase in that release went
+unstated.
 
 TINY work never loads DEEP guidance; maps, ownership, PLAN_CHECK, UAT, and enforcement detail load only
 when relevant. No new always-loaded agent; no Spec Kit / Yojana / Sutra context.

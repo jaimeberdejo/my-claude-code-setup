@@ -5,8 +5,12 @@
 # unresolved Open questions), so a stale label can never trick the gate. No frontmatter = draft.
 status: draft   # draft = not yet closed · grilling = interview open · ready = closed (informational)
 tier:           # TINY | STANDARD | DEEP — recommended by scripts/classify-work.sh, informational + overridable.
-                # Governs how much of this template to fill (see "Depth by tier" below). NOT gated on:
-                # readiness is still derived from content, so a stale tier can never trick the gate. Empty = STANDARD.
+                # Governs how much of this template to fill (see "Depth by tier" below). READINESS is NOT
+                # gated on it: readiness is derived from content, so a stale tier can never trick that gate.
+                # It DOES scale ceremony — /phase consults it to decide whether the independent PLAN_CHECK
+                # runs — so an unjustified TINY buys less review, not just a shorter spec. Nothing validates
+                # this field against the classifier: keeping it honest is human-dependent, and a high-stakes
+                # or supervised phase runs PLAN_CHECK regardless of what it says. Empty = STANDARD.
 ---
 # Spec: <NAME>
 

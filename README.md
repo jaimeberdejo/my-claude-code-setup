@@ -204,12 +204,12 @@ no external CLI, no second spec/task hierarchy, and no always-loaded context tax
 
 ## Progressive control plane (v2.14.0, optional)
 
-Ceremony proportionate to risk — all opt-in, all offline, **zero always-loaded cost** (`CLAUDE.md`
+Ceremony proportionate to risk — all opt-in, all offline, **+427 B always-loaded** since v2.13.0 (`CLAUDE.md`
 unchanged). Full reference: `jaimitos-os/toolkit-docs/CONTROL-PLANE.md`.
 
 - **Workflow tiers** — `jaimitos-os/scripts/classify-work.sh` recommends `TINY | STANDARD | DEEP` from
   explicit risk/complexity signals; the tier is recorded (overridably) in `docs/SPEC.md` `tier:` and scales
-  spec depth, mapping, plan-check, and UAT. Escalation signals (auth, secrets, payments, migrations, …)
+  spec depth, mapping, and plan-check. Escalation signals (auth, secrets, payments, migrations, …)
   normally prevent TINY.
 - **Brownfield & ownership mapping** — bounded modes of the `mapme` skill (`--brownfield`, `--ownership`,
   `--refresh`), tagging every claim VERIFIED/INFERRED/UNKNOWN and comparing stated vs actual architecture.

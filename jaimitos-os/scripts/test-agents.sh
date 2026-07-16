@@ -225,8 +225,12 @@ A_SUM=0
 for f in "$SCAFFOLD"/.claude/agents/*.md; do
   [ -e "$f" ] || continue
   base=$(basename "$f" .md)
+  # Measured EXACTLY like test-skills.sh's description budget: awk's print appends \n, so wc -c
+  # counts one trailing byte per description. Matching the idiom matters more than the byte: two
+  # always-loaded budgets measured two ways produce two "true" totals that disagree, and an
+  # independent reader lands N bytes low and reports the doc as wrong (it isn't).
   d=$(awk '/^description:/{sub(/^description: */,""); print; exit}' "$f")
-  n=$(printf '%s' "$d" | wc -c | tr -d ' ')
+  n=$(printf '%s\n' "$d" | wc -c | tr -d ' ')
   A_SUM=$((A_SUM + n))
   if [ "$n" -gt "$A_DESC_CAP" ]; then
     fail "agent '$base' description is ${n}B > ${A_DESC_CAP}B — trim the trigger text, don't summarize the prompt"
