@@ -54,6 +54,7 @@ TESTS=(
   test-stale-plan.sh
   test-uat.sh
   test-diagnose.sh
+  test-control-plane-security.sh
   test-sandbox.sh
   test-sync.sh
   test-test-cmd.sh
