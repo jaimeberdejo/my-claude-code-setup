@@ -49,6 +49,7 @@ TESTS=(
   test-enforcement.sh
   test-models.sh
   test-classify-work.sh
+  test-stale-plan.sh
   test-sandbox.sh
   test-sync.sh
   test-test-cmd.sh

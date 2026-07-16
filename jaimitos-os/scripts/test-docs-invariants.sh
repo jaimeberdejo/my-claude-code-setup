@@ -209,6 +209,18 @@ assert_has ".claude/agents/evaluator.md" "cannot approve a plan you authored" \
 assert_has ".claude/commands/phase.md" "do NOT execute a failed plan" \
            "/phase dispatches PLAN_CHECK after planning and blocks execution on FAIL (skipped for TINY)"
 
+# Stale-plan revalidation (v2.14.0) — plans decay as the repo moves. The planner records the baseline and
+# a revalidation section; check-plan-freshness.sh gives the deterministic signals. An invalidated plan may
+# not keep a prior PASS. Semantic validity stays evaluator-reviewed.
+assert_has ".claude/agents/planner.md" "## Assumption revalidation" \
+           "planner records assumption revalidation (baseline + still-valid/changed/stale fields)"
+assert_has ".claude/agents/planner.md" "may not keep a prior PASS" \
+           "an invalidated plan may not retain a prior PASS"
+assert_has "scripts/check-plan-freshness.sh" "no longer an ancestor of HEAD" \
+           "plan-freshness check detects a baseline that diverged from HEAD"
+assert_has "scripts/check-plan-freshness.sh" "no longer resolves in" \
+           "plan-freshness check detects a cited requirement/enforcement id that was removed"
+
 # Prototype — sanctioned, but never a route to a tick.
 assert_has "../skills/prototype/SKILL.md" "**MAY NEVER** satisfy production implementation or release criteria" \
            "prototype output can never satisfy production/release criteria"
