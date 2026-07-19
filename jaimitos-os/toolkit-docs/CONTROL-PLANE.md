@@ -1,20 +1,24 @@
-# Progressive control plane (v2.14.0)
+# Progressive control plane
 
-Release 4 makes Jaimitos **proportionate to risk**: small work stays cheap, unfamiliar and high-stakes
-work gets depth — while the deterministic completion spine (`scripts/tick.sh`) stays the sole authority,
-the four conditional agents stay four, and no external runtime (Spec Kit / Yojana / Sutra) is required.
-Every capability below lands inside an *existing* owner or as a small, inspectable, offline script that
-loads only when relevant. `jaimitos-os/CLAUDE.md` is byte-for-byte unchanged (3140 B) — but that is not
-the same as "zero always-loaded cost", which this document used to claim three rows above a table that
-contradicted it. v2.14.0 added **+412 B** always-loaded (skill descriptions +138, the evaluator's agent
-description +274); v2.15.0 adds +15 B on top. Small, and worth it — but measured and stated, because a
-budget dies by never being totalled.
+The control plane makes Jaimitos **proportionate to risk**: small work stays cheap, unfamiliar and
+high-stakes work gets depth — while the deterministic completion spine (`scripts/tick.sh`) stays the sole
+authority, the four conditional agents stay four, and no external runtime (Spec Kit / Yojana / Sutra) is
+required. Every capability below lands inside an *existing* owner or as a small, inspectable, offline
+script that loads only when relevant.
 
-This chain — R3's traceability spine, now complete in both directions — is what everything hangs off:
+**This document is the authoritative description of the authority model and the operational workflow.**
+`docs/dev/AUTHORING.md` classifies each guarantee (deterministic vs model- vs human-dependent); the GUIDE
+gives the detailed operator walkthrough and links here rather than restating the workflow. Always-loaded
+context is measured, not assumed (see the Context cost table below); `jaimitos-os/CLAUDE.md` is unchanged
+at 3140 B, and every capability here loads only on the turn it is invoked — a budget dies by never being
+totalled.
+
+This chain — R3's traceability spine, complete in both directions — is what everything hangs off:
 
 ```
 classify-work.sh  → SPEC tier + REQ/AC → ROADMAP phase → plan (ownership + revalidation)
-                  → Evaluator PLAN_CHECK (pre-mortem) → implementation → evidence (schema 2)
+                  → plan-review-route.sh (deterministic gate) → Evaluator PLAN_CHECK when risk warrants
+                  → implementation → evidence (schema 2)
                   → Evaluator IMPLEMENTATION_REVIEW → optional UAT → record-grade → tick.sh
                                                                       ↺ gap plan on failure
 ```
@@ -71,7 +75,12 @@ read-only plan review before execution, with a checklist **plus a pre-mortem** (
 written and still failed — why?") over requirement coverage, integration seams, dependency graph, temporal
 risks, failure behavior, verification, and ownership. Verdict `PLAN_PASS | PLAN_PASS_WITH_WARNINGS |
 PLAN_FAIL` — a separate channel `record-grade.sh` mechanically rejects by token; `PLAN_FAIL` returns
-the plan to the planner and blocks execution. `/phase` runs it after planning for STANDARD/DEEP/supervised phases; TINY skips it.
+the plan to the planner and blocks execution. `/phase` routes deterministically via
+`scripts/plan-review-route.sh`: DEEP, supervised, and any STANDARD with a high-stakes path, a hard-stale
+plan, or a blocking `[NEEDS CLARIFICATION]` get the full PLAN_CHECK; a **clear low-risk STANDARD** gets
+deterministic checks only (no evaluator dispatch); TINY skips it. The router **validates** the persisted
+`tier:` — an invalid or absent value fails safe to STANDARD + full review — so a false or stale tier can
+never buy a lighter review.
 
 ## 6. Stale-plan revalidation
 A STANDARD/DEEP plan records its baseline and a `## Assumption revalidation` section (ADR-006).
