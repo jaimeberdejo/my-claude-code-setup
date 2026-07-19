@@ -144,8 +144,9 @@ rewritten.
 | PLAN_CHECK + pre-mortem | MEDIUM | a STANDARD/DEEP plan check |
 | Difficult debugging (`diagnose`) | MEDIUM–HIGH | invoking `diagnose` |
 
-**Total always-loaded: 9528 B** (3140 + 5173 + 1215). v2.13.0 was 9101 B; v2.14.0 added +412 B and
-v2.15.0 +15 B. Both description budgets are CI-enforced and measured the same way (`awk print | wc -c`,
+**Total always-loaded: 9528 B** (3140 + 5173 + 1215). v2.13.0 was 9101 B; v2.14.0 added +412 B,
+v2.15.0 +15 B, and **v2.16.0 +0 B** — the plan-review router is a script and `/phase` a command, both
+loaded only on invocation, so proportional review costs nothing always-loaded. Both description budgets are CI-enforced and measured the same way (`awk print | wc -c`,
 which counts one trailing byte per description — measure it any other way and you will land ~20 B low
 and think the table is wrong). The agent row is new in v2.15.0: v2.14.0's table had a row for skill
 descriptions and none for agents, which is how the largest always-loaded increase in that release went

@@ -211,10 +211,11 @@ no external CLI, no second spec/task hierarchy, and no always-loaded context tax
 
 ---
 
-## Progressive control plane (v2.14.0, optional)
+## Progressive control plane (optional)
 
-Ceremony proportionate to risk — all opt-in, all offline, **+427 B always-loaded** since v2.13.0 (`CLAUDE.md`
-unchanged). Full reference: `jaimitos-os/toolkit-docs/CONTROL-PLANE.md`.
+Ceremony proportionate to risk — all opt-in, all offline, **+427 B always-loaded** since v2.13.0
+(unchanged in v2.16.0; `CLAUDE.md` unchanged throughout). Full reference:
+`jaimitos-os/toolkit-docs/CONTROL-PLANE.md` (the authority for the workflow).
 
 - **Workflow tiers** — `jaimitos-os/scripts/classify-work.sh` recommends `TINY | STANDARD | DEEP` from
   explicit risk/complexity signals; the tier is recorded (overridably) in `docs/SPEC.md` `tier:` and scales
@@ -222,9 +223,11 @@ unchanged). Full reference: `jaimitos-os/toolkit-docs/CONTROL-PLANE.md`.
   normally prevent TINY.
 - **Brownfield & ownership mapping** — bounded modes of the `mapme` skill (`--brownfield`, `--ownership`,
   `--refresh`), tagging every claim VERIFIED/INFERRED/UNKNOWN and comparing stated vs actual architecture.
-- **Evaluator PLAN_CHECK + pre-mortem** — a fresh, read-only plan review before execution.
-  `check-plan-freshness.sh --strict` reports deterministic staleness signals; a plan that fails them may
-  not keep a prior PASS. Running it is the planner's step, not an automatic gate.
+- **Proportional plan review** — `/phase` runs the deterministic `scripts/plan-review-route.sh`, which
+  validates the persisted `tier:` (invalid/absent → full review) and routes: a clear low-risk STANDARD
+  gets deterministic checks only, while risky STANDARD, DEEP, supervised, or a high-stakes / hard-stale /
+  unclear plan gets the full independent Evaluator PLAN_CHECK + pre-mortem. `check-plan-freshness.sh
+  --strict` reports deterministic staleness; a plan that fails it may not keep a prior PASS.
 - **Evidence schema 2 & gap planning** — richer commit-bound evidence; a bounded correction plan cites the
   failed id, classifies the cause, and requires fresh evidence.
 
