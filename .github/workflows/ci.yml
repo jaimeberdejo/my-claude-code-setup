@@ -12,6 +12,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Assert non-root Linux (the toolkit claims non-root compatibility — prove CI exercises it)
+        run: |
+          # jaimitos-os documents a non-root operating mode; GitHub's ubuntu runner is the non-root
+          # `runner` user, so the guard + install suites below genuinely exercise that path. Assert it
+          # explicitly so a future containerised/root runner can't silently retire the coverage.
+          if [ "$(id -u)" -eq 0 ]; then
+            echo "::error::CI is running as root (uid 0) — the non-root guard/install path is NOT being exercised."
+            exit 1
+          fi
+          echo "running as uid $(id -u) ($(id -un)) — non-root Linux path exercised"
+
       - name: Install jq + shellcheck
         run: sudo apt-get update && sudo apt-get install -y jq shellcheck
 
