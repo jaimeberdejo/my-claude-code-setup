@@ -58,23 +58,50 @@ for a in "$@"; do
   esac
 done
 
-# Load-bearing files that MUST exist. A manifest, not a bare glob: a glob of PRESENT files can flag a
-# bad exec-bit or a syntax error, but it can never notice a DELETED file — so deleting tick.sh / sync.sh
-# / _test-cmd.sh would otherwise slip past as "All good" (audit H3). Test suites aren't listed here —
-# run-guard-tests.sh has its own drift guard for those.
-REQUIRED_SCRIPTS="autopilot.sh tick.sh test-evidence.sh record-grade.sh models.sh sync.sh doctor.sh close-milestone.sh next-adr.sh lint-roadmap.sh run-guard-tests.sh"
-REQUIRED_LIBS="_secret-scan _high-stakes _test-cmd _eval-isolation"
-
-# Shipped project skills are DERIVED from the install manifest, never hardcoded here. install.sh records
-# every file it wrote (`<sha256>  <rel-path>`), so the manifest already knows the exact skill set THIS
-# project was installed with — which is strictly better than a hand-maintained list: it detects a skill
-# dropped or renamed relative to what actually shipped, and it can't go stale when a skill is added.
-# (Maintainer-only skills live in the toolkit's repo-root .claude/skills/, which no install path reads,
-# so they can never appear here.)
-manifest_skills() {
+# Load-bearing files that MUST exist, DERIVED from the install manifest — never a hand-maintained list.
+# A glob of PRESENT files can flag a bad exec-bit or a syntax error, but can never notice a DELETED one,
+# so deleting tick.sh would slip past as "All good" (audit H3). The original fix was a hardcoded list —
+# which then went stale exactly as a hardcoded list does: v2.14.0 shipped classify-work.sh /
+# check-plan-freshness.sh / trace-requirements.sh and the _requirements lib, the list named none of them,
+# and deleting one slipped past as "All good" all over again. install.sh records every toolkit file it
+# wrote (`<sha256>  <rel-path>`), so the manifest is the authority on what THIS project shipped with, and
+# a derived set can never drift from it. (Same source, and same rationale, as the skills check below.)
+#
+# When no manifest exists (a pre-v2.5.0 install, or the toolkit's own source tree) fall back to a minimal
+# FLOOR — the scripts/libs present in every version — so the most catastrophic deletions are still caught.
+# The floor is a safety net, not a maintained catalog: install-smoke.sh owns the authoritative full-set
+# check, and the manifest path is what a normal install exercises.
+manifest_rel() {  # $1 = ERE the rel-path (hash stripped) must match; prints matching paths, sorted
   [ -f .claude/.jaimitos-manifest ] || return 1
-  grep -oE '\.claude/skills/[^/]+/SKILL\.md$' .claude/.jaimitos-manifest 2>/dev/null \
-    | sed -e 's#^\.claude/skills/##' -e 's#/SKILL\.md$##' | sort -u
+  awk '{ sub(/^[^ ]+  /, ""); print }' .claude/.jaimitos-manifest 2>/dev/null | grep -E "$1" | sort -u
+}
+
+# Operational scripts = every scripts/*.sh the manifest recorded, MINUS the test SUITES and *.template.sh.
+# A test suite is scripts/test-*.sh other than test-evidence.sh — exactly run-guard-tests.sh's own rule
+# (test-evidence.sh is the evidence PRODUCER, load-bearing, not a suite). A missing suite weakens
+# verification but disables no gate, and run-guard-tests.sh owns their registration; a missing operational
+# script silently kills a gate/update/repair path, which is what this section is for.
+REQUIRED_SCRIPTS="$(manifest_rel '^scripts/[^/]+\.sh$' | sed 's#^scripts/##' \
+  | awk '$0 !~ /\.template\.sh$/ && ($0 == "test-evidence.sh" || $0 !~ /^test-/)')"
+SCRIPTS_SRC=manifest
+if [ -z "$REQUIRED_SCRIPTS" ]; then
+  REQUIRED_SCRIPTS="autopilot.sh tick.sh test-evidence.sh record-grade.sh models.sh sync.sh doctor.sh close-milestone.sh next-adr.sh lint-roadmap.sh run-guard-tests.sh"
+  SCRIPTS_SRC=floor
+fi
+
+REQUIRED_LIBS="$(manifest_rel '^\.claude/lib/[^/]+\.sh$' | sed -e 's#^\.claude/lib/##' -e 's#\.sh$##')"
+LIBS_SRC=manifest
+if [ -z "$REQUIRED_LIBS" ]; then
+  REQUIRED_LIBS="_secret-scan _high-stakes _test-cmd _eval-isolation"
+  LIBS_SRC=floor
+fi
+
+# Shipped project skills are DERIVED from the install manifest too — it detects a skill dropped or renamed
+# relative to what actually shipped, and can't go stale when a skill is added. (Maintainer-only skills live
+# in the toolkit's repo-root .claude/skills/, which no install path reads, so they never appear here.)
+manifest_skills() {
+  manifest_rel '^\.claude/skills/[^/]+/SKILL\.md$' \
+    | sed -e 's#^\.claude/skills/##' -e 's#/SKILL\.md$##'
 }
 
 echo "jaimitos-os doctor"
@@ -108,6 +135,7 @@ else warn "docs/FAILURES.md missing (created on the first resolved finding, or r
 echo ""
 
 echo "Operational scripts (load-bearing — a missing one silently disables a gate/update/repair path):"
+[ "$SCRIPTS_SRC" = floor ] && info "no manifest — checking a minimal floor only; re-run install.sh (or sync.sh --adopt-manifest) to verify the full shipped set"
 for s in $REQUIRED_SCRIPTS; do
   [ -f "scripts/$s" ] && ok "scripts/$s" || bad "missing scripts/$s"
 done
@@ -292,6 +320,7 @@ echo ""
 echo "Shared guard libraries (.claude/lib/):"
 # Sourced by commit-on-stop.sh and autopilot.sh. If absent, the secret-scan and
 # high-stakes gates silently disable, so treat as hard failures.
+[ "$LIBS_SRC" = floor ] && info "no manifest — checking a minimal floor only (re-run install.sh to verify the full set)"
 for lib in $REQUIRED_LIBS; do
   [ -f ".claude/lib/$lib.sh" ] && ok ".claude/lib/$lib.sh (shared guard lib)" || bad "missing .claude/lib/$lib.sh (secret/high-stakes/test-cmd gate disabled without it)"
 done

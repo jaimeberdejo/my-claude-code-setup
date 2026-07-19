@@ -107,6 +107,11 @@ scores **100% (13/13)**, and `AUTHORING.md` carries the discipline so it does no
 - **"The tier is never a gate"** was pinned by a test and false. It is not a gate on *readiness*; it *is*
   what `/phase` consults to decide whether the independent PLAN_CHECK runs.
 - v2.14.0's dogfood "Not run (honest)" section omitted PLAN_CHECK, its own flagship — appended.
+- **`doctor.sh` derives its required-file set from the install manifest**, not a hand-maintained
+  list. The hardcoded list had gone stale — it named none of v2.14.0's five new scripts nor the
+  `_requirements` lib, so deleting one slipped past as "All good", reintroducing the exact audit-H3
+  defect the list was built to prevent. A minimal floor still catches catastrophic deletions when no
+  manifest exists (pre-v2.5.0 install / toolkit tree).
 
 ## [2.14.0] — 2026-07-16
 

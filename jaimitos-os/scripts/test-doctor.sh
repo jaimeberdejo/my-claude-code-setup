@@ -97,6 +97,44 @@ grep -q "missing .claude/lib/_test-cmd.sh" "$WORK/h3.out" && pass "H3: flags a d
 { [ "$rc" -ne 0 ] && ! grep -q "All good" "$WORK/h3.out"; } \
   && pass "H3: exits non-zero, no false 'All good' with load-bearing files deleted" || fail "H3: clean bill of health despite deletions (rc=$rc)"
 
+# H3 (manifest) — the required set is DERIVED from .claude/.jaimitos-manifest, so a file the old
+# hardcoded floor never named is still caught. v2.14.0 shipped classify-work.sh / trace-requirements.sh
+# and the _requirements lib and the hand-maintained list named none of them, so deleting one slipped
+# past as "All good" (audit finding). Hash column is irrelevant to doctor — it strips it and greps the
+# path — so a placeholder hash is fine. First prove the floor's blind spot, then that the manifest fixes it.
+ZERO=0000000000000000000000000000000000000000000000000000000000000000
+
+mkscaffold "$WORK/h3blind"
+rm -f "$WORK/h3blind/scripts/classify-work.sh"          # a real v2.14.0 script, NOT in the floor
+( cd "$WORK/h3blind" && bash scripts/doctor.sh > "$WORK/h3blind.out" 2>&1 )
+grep -q "missing scripts/classify-work.sh" "$WORK/h3blind.out" \
+  && fail "floor unexpectedly named classify-work.sh (the contrast this test relies on is gone)" \
+  || pass "floor alone is blind to a deleted classify-work.sh (why the manifest is needed)"
+
+mkscaffold "$WORK/h3man"
+for rel in scripts/classify-work.sh scripts/check-plan-freshness.sh scripts/trace-requirements.sh \
+           scripts/tick.sh scripts/test-tick.sh .claude/lib/_requirements.sh .claude/lib/_secret-scan.sh; do
+  printf '%s  %s\n' "$ZERO" "$rel" >> "$WORK/h3man/.claude/.jaimitos-manifest"
+done
+# Control: the manifest-listed new script is now actually checked (present → a ✓ line for it).
+( cd "$WORK/h3man" && bash scripts/doctor.sh > "$WORK/h3man.ctl" 2>&1 ) || true
+grep -q "✓ scripts/classify-work.sh" "$WORK/h3man.ctl" \
+  && pass "manifest: a v2.14.0 script the old list missed is now verified present" \
+  || fail "manifest: classify-work.sh is not checked even with a manifest listing it"
+# A test SUITE listed in the manifest must NOT be demanded by the operational-scripts check
+# (test-tick.sh is a suite, not a gate — run-guard-tests.sh owns its registration).
+grep -q "missing scripts/test-tick.sh" "$WORK/h3man.ctl" \
+  && fail "manifest: a test suite (test-tick.sh) was wrongly demanded as an operational script" \
+  || pass "manifest: test suites are excluded from the operational-scripts check"
+
+# Delete a manifest-listed script AND lib that the floor never named → doctor must go RED and name both.
+rm -f "$WORK/h3man/scripts/classify-work.sh" "$WORK/h3man/.claude/lib/_requirements.sh"
+( cd "$WORK/h3man" && bash scripts/doctor.sh > "$WORK/h3man.out" 2>&1 ); h3mrc=$?
+grep -q "missing scripts/classify-work.sh"        "$WORK/h3man.out" && pass "manifest: flags a deleted classify-work.sh"        || fail "manifest: deleted classify-work.sh not reported"
+grep -q "missing .claude/lib/_requirements.sh"    "$WORK/h3man.out" && pass "manifest: flags a deleted _requirements.sh lib"    || fail "manifest: deleted _requirements.sh not reported"
+{ [ "$h3mrc" -ne 0 ] && ! grep -q "All good" "$WORK/h3man.out"; } \
+  && pass "manifest: exits non-zero, no false 'All good' when a shipped file is gone" || fail "manifest: clean bill despite a deleted shipped file (rc=$h3mrc)"
+
 # M11 — the remediation hint prints on a plain (no --fix) problem run, not only behind --fix.
 grep -q "install.sh --force" "$WORK/h3.out" && pass "M11: remediation hint printed without --fix" || fail "M11: no remediation hint on a plain problem run"
 
