@@ -122,8 +122,17 @@ blind copy can't: detects your stack, fills `CLAUDE.md`'s test/lint/run commands
 
 ### Option C — manual copy
 ```bash
+# Scaffold. This crude copy grabs the whole tree — including toolkit-docs/ and the full guard-test
+# suite that install.sh gates behind --with-tests (harmless, just heavier). Prefer Option A for the
+# exact lean install; use this only when you can't run install.sh.
 cp -r ~/jaimitos-claude-setup/jaimitos-os/. /path/to/your-repo/
-mkdir -p /path/to/your-repo/.claude/skills && cp -r ~/jaimitos-claude-setup/skills/*/ /path/to/your-repo/.claude/skills/
+# Skills: every skill EXCEPT setup-jaimitos-os (the installer/meta skill — not needed per-project),
+# matching what install.sh copies. This includes the user-invoked skills the agents reference
+# (module-design, prototype, review-feedback).
+mkdir -p /path/to/your-repo/.claude/skills
+for d in ~/jaimitos-claude-setup/skills/*/; do
+  [ "$(basename "$d")" = setup-jaimitos-os ] || cp -r "$d" /path/to/your-repo/.claude/skills/
+done
 cd /path/to/your-repo && chmod +x .claude/hooks/*.sh scripts/*.sh && bash scripts/doctor.sh
 ```
 
@@ -458,6 +467,11 @@ bash scripts/sync.sh --toolkit /path/to/jaimitos-claude-setup/jaimitos-os       
 - `--dry-run` writes nothing (not even the manifest); a failed copy is reported and exits nonzero,
   never counted as success. Run sync on a clean working tree so you can `git diff` the result.
 - Sync **refuses on a never-scaffolded project** (no `.claude/settings.json`) — run `install.sh` first.
+- **`install.sh --force` is NOT the upgrade path.** It overwrites managed files **in place, with no
+  backup** and skipping nothing, so on a project you've customized it silently discards your edits — the
+  opposite of what sync does. Reach for it only to *restore* a missing or corrupted toolkit file
+  (`doctor.sh` suggests it for exactly that), never as a routine "pull the latest." Sync is the standard
+  upgrade; `--force` is a repair tool.
 
 ## Loop engineering notes
 
