@@ -212,6 +212,38 @@ assert_absent "../README.md" "check-uat" \
 assert_absent "../docs/dev/AUTHORING.md" "lint-enforcement.sh" \
            "the guarantee table claims no enforcement-ledger gate (the validator is gone)"
 
+# The two file-existence + two file/token checks above are necessary but not sufficient: v2.16.0 found
+# the deleted systems still named as LIVE operational guidance on nine active surfaces the pair above
+# never looked at (classify-work.sh, evaluator.md, CONTROL-PLANE.md, GUIDE.md, mapme, …). Widen the guard
+# to every surface that ships into a project or drives an agent/command. History is deliberately NOT
+# scanned — CHANGELOG, ADRs, docs/dev/plans, docs/dev/audits, the README removal note, and
+# check-plan-freshness.sh's own ENF-removal comment all legitimately name the removed systems, as do the
+# pre-deletion .claude/worktrees/ checkouts (never scanned). Tokens are EXACT operational phrases: bare
+# "ledger" is a high-stakes domain keyword (GUIDE's content regex) and bare "UAT" is the surviving
+# informal-acceptance concept, so neither is guarded here — only phrases that assert a deleted mechanism.
+echo ""
+echo "deleted enforcement/UAT ledgers stay deleted on ACTIVE operational surfaces (ADR-008)"
+echo ""
+LEDGER_SURFACES="scripts/classify-work.sh \
+.claude/agents/researcher.md .claude/agents/planner.md .claude/agents/executor.md .claude/agents/evaluator.md \
+.claude/commands/phase.md .claude/commands/wrap.md .claude/commands/autopilot.md .claude/commands/resume.md .claude/commands/models.md \
+toolkit-docs/CONTROL-PLANE.md toolkit-docs/GUIDE.md docs/SPEC.md ../skills/mapme/SKILL.md"
+LEDGER_PHRASES=("enforcement ledger" "enforcement-ledger" "UAT ledger" "formal UAT" "OBJ/ENF" "lint-enforcement" "check-uat")
+ledger_hits=0
+for surf in $LEDGER_SURFACES; do
+  if [ ! -f "$ROOT/$surf" ]; then
+    bad "ledger-guard: active surface not found: $surf (a file moved — update this list, do not drop coverage)"
+    ledger_hits=$((ledger_hits+1)); continue
+  fi
+  for ph in "${LEDGER_PHRASES[@]}"; do
+    if grep -qiF "$ph" "$ROOT/$surf"; then
+      bad "active surface $surf still references the removed '$ph' — route through tick.sh/PLAN_CHECK, not a ledger (ADR-008)"
+      ledger_hits=$((ledger_hits+1))
+    fi
+  done
+done
+[ "$ledger_hits" -eq 0 ] && ok "no active operational surface instructs using the removed enforcement/UAT ledgers (14 surfaces × ${#LEDGER_PHRASES[@]} phrases)"
+
 # Evaluator PLAN_CHECK + pre-mortem (v2.14.0) — the SAME independent evaluator gains a second mode. No new
 # agent, no second evaluator. IMPLEMENTATION_REVIEW keeps the two-axis PASS/NEEDS_WORK contract that
 # record-grade.sh gates on; PLAN_CHECK is a fresh, read-only plan review with its OWN verdict triple, on a
