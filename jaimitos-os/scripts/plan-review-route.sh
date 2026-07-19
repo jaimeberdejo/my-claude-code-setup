@@ -89,7 +89,7 @@ if [ -f .claude/lib/_high-stakes.sh ] && . .claude/lib/_high-stakes.sh 2>/dev/nu
    && command -v high_stakes_match >/dev/null 2>&1; then
   PLAN_PATHS=$(grep -oE '[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+|[A-Za-z0-9_-]+\.(py|ts|tsx|js|jsx|go|rs|rb|java|kt|c|cc|cpp|h|hpp|sql|sh|md|json|ya?ml|toml|env)' "$PLAN" 2>/dev/null | sort -u)
   if [ -n "$PLAN_PATHS" ]; then
-    HS_HITS=$(high_stakes_match "$PLAN_PATHS"); HS_RC=$?     # read rc on its own line — NOT inside an `if`
+    high_stakes_match "$PLAN_PATHS" >/dev/null; HS_RC=$?     # read rc on its own line — NOT inside an `if`
     case "$HS_RC" in
       0) HS_SIGNAL=1 ;;   # a declared path is high-stakes
       2) HS_SIGNAL=1 ;;   # HIGH_STAKES_RE does not compile -> fail CLOSED
