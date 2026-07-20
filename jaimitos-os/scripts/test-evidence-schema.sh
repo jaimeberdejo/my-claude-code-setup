@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# test-evidence-schema.sh — the v2.14.0 evidence schema (schema_version 2) produced by test-evidence.sh.
-# Proves: a green run emits schema_version 2 with the v1 fields intact (so tick.sh still reads it) plus
-# evidence_id / requirement refs / classification / timestamps; content_hash is genuinely recomputable
-# (an edited field breaks it); a red run records passed:false (a summary can NEVER override the exit
-# status); a secret in the output is redacted out of the bounded summary; and a no-tests run stays v2.
+# test-evidence-schema.sh — the evidence schema produced by test-evidence.sh (schema_version 3 since
+# v2.17: adds the phase-identity binding fields heading + base on top of v2). Proves: a green run emits
+# schema_version 3 with the v1 fields intact (so tick.sh still reads it) plus evidence_id / requirement
+# refs / classification / timestamps / heading / base; content_hash is genuinely recomputable (an edited
+# field breaks it); a red run records passed:false (a summary can NEVER override the exit status); a
+# secret in the output is redacted out of the bounded summary; and a no-tests run stays schema 3.
 set -uo pipefail
 SCAFFOLD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EVID="$SCAFFOLD/scripts/test-evidence.sh"
@@ -28,14 +29,15 @@ mkrepo() {
   HEAD=$(git -C "$REPO" rev-parse HEAD); ev="$REPO/.claude/.tick-evidence.json"
 }
 
-echo "evidence schema v2 tests"; echo ""
+echo "evidence schema v3 tests"; echo ""
 
-echo "A green run emits schema_version 2 with v1 fields intact + the new fields"
+echo "A green run emits schema_version 3 with v1 fields intact + the new fields"
 mkrepo green
 ( cd "$REPO" && LEAN_TEST_CMD=true EVIDENCE_ID=EVIDENCE-1.1 LEAN_EVIDENCE_REQUIREMENTS="REQ-001, AC-002" bash scripts/test-evidence.sh >/dev/null 2>&1 )
-[ "$(jq -r .schema_version "$ev")" = 2 ]        && pass "schema_version is 2"                        || fail "schema_version wrong: $(jq -r .schema_version "$ev")"
+[ "$(jq -r .schema_version "$ev")" = 3 ]        && pass "schema_version is 3"                        || fail "schema_version wrong: $(jq -r .schema_version "$ev")"
 [ "$(jq -r .passed "$ev")" = true ]             && pass "passed:true (v1 field kept)"                || fail "passed wrong"
 [ "$(jq -r .run_id "$ev")" = "$HEAD" ]          && pass "run_id == HEAD (v1 field kept)"             || fail "run_id wrong"
+jq -e 'has("heading") and has("base")' "$ev" >/dev/null 2>&1 && pass "phase-identity keys (heading, base) present" || fail "heading/base keys missing"
 [ "$(jq -r .evidence_id "$ev")" = "EVIDENCE-1.1" ] && pass "evidence_id from env"                    || fail "evidence_id wrong"
 [ "$(jq -r '.requirements | join(",")' "$ev")" = "REQ-001,AC-002" ] && pass "requirement refs recorded" || fail "requirements wrong: $(jq -c .requirements "$ev")"
 [ "$(jq -r .classification "$ev")" = deterministic ] && pass "classification deterministic"          || fail "classification wrong"
@@ -55,7 +57,7 @@ mkrepo red
 ( cd "$REPO" && TEST_EVIDENCE_RETRIES=0 LEAN_TEST_CMD='sh -c "echo the-suite-says-everything-is-fine; exit 1"' bash scripts/test-evidence.sh >/dev/null 2>&1 ); erc=$?
 [ "$erc" = 1 ]                          && pass "red suite → exit 1"                         || fail "red exit wrong: $erc"
 [ "$(jq -r .passed "$ev")" = false ]   && pass "passed:false despite a reassuring summary"  || fail "red passed wrong: $(jq -r .passed "$ev")"
-[ "$(jq -r .schema_version "$ev")" = 2 ] && pass "red evidence is still schema 2"           || fail "red schema wrong"
+[ "$(jq -r .schema_version "$ev")" = 3 ] && pass "red evidence is still schema 3"           || fail "red schema wrong"
 
 echo ""
 echo "A secret in the output is redacted out of the bounded summary"
@@ -67,11 +69,11 @@ printf '%s' "$SUM" | grep -q "REDACTED"   && pass "summary shows ***REDACTED***"
 printf '%s' "$SUM" | grep -q "AKIAIOSF"   && fail "the secret leaked into the summary"  || pass "the raw secret is absent from the summary"
 
 echo ""
-echo "A no-tests run stays schema 2 with passed:null"
+echo "A no-tests run stays schema 3 with passed:null"
 mkrepo notests
 ( cd "$REPO" && bash scripts/test-evidence.sh --allow-no-tests >/dev/null 2>&1 ); erc=$?
-{ [ "$erc" = 0 ] && [ "$(jq -r .passed "$ev")" = null ] && [ "$(jq -r .schema_version "$ev")" = 2 ]; } \
-  && pass "no-tests → exit 0, passed:null, schema 2" || fail "no-tests case wrong (rc=$erc)"
+{ [ "$erc" = 0 ] && [ "$(jq -r .passed "$ev")" = null ] && [ "$(jq -r .schema_version "$ev")" = 3 ]; } \
+  && pass "no-tests → exit 0, passed:null, schema 3" || fail "no-tests case wrong (rc=$erc)"
 
 echo ""
 echo "The summary is BOUNDED — the header says so, and nothing tested it"

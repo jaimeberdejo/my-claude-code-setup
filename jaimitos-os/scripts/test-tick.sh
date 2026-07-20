@@ -60,10 +60,14 @@ GI
 # good evidence for the current HEAD; individual tests override pieces.
 # First arg may be a short repo name (resolved under $WORK) or a full path.
 _resolve()     { case "$1" in */*) printf '%s' "$1" ;; *) printf '%s/%s' "$WORK" "$1" ;; esac; }
-set_grade()    { printf 'run_id=%s\nverdict=%s\nno_tests_ok=%s\n' "$2" "$3" "${4:-0}" > "$(_resolve "$1")/.claude/.phase-grade"; }
+# The heading tick judges (from .phase-ready) and the base the resolver reads (from .phase-base, or the
+# anchor if present) — the v2.17 grade/evidence binding must stamp these so they match the phase window.
+GRADE_HEADING='## Phase 1 — Work'
+_base() { local r; r="$(_resolve "$1")"; if [ -f "$r/.claude/.phase-anchor" ]; then grep -E '^base=' "$r/.claude/.phase-anchor" | head -1 | cut -d= -f2-; else cat "$r/.claude/.phase-base" 2>/dev/null; fi; }
+set_grade()    { printf 'run_id=%s\nverdict=%s\nno_tests_ok=%s\nheading=%s\nbase=%s\n' "$2" "$3" "${4:-0}" "$GRADE_HEADING" "$(_base "$1")" > "$(_resolve "$1")/.claude/.phase-grade"; }
 set_evidence() { printf '%s\n' "$2" > "$(_resolve "$1")/.claude/.tick-evidence.json"; }
 good_grade()   { set_grade "$1" "$HEAD" PASS 0; }
-good_evidence(){ set_evidence "$1" "{\"passed\":true,\"run_id\":\"$HEAD\"}"; }
+good_evidence(){ set_evidence "$1" "{\"schema_version\":3,\"passed\":true,\"run_id\":\"$HEAD\",\"heading\":\"$GRADE_HEADING\",\"base\":\"$(_base "$1")\"}"; }
 # set_mode <repo> <mode>: append a `Mode: <mode>` line to docs/ROADMAP.md AND COMMIT it, then
 # re-capture HEAD. Real roadmaps carry their Mode lines in git, so the tree is clean at tick time;
 # the fixtures used to append WITHOUT committing, which tick.sh's clean-tree gate (H5) now correctly
@@ -94,6 +98,52 @@ mkrepo t1b; good_grade t1b; set_evidence t1b "{\"schema_version\":2,\"passed\":t
 # 1c — an unknown/future schema_version fails CLOSED (don't trust evidence from a producer we can't read).
 mkrepo t1c; good_grade t1c; set_evidence t1c "{\"schema_version\":99,\"passed\":true,\"run_id\":\"$HEAD\"}"; rc=$(runtick "$REPO")
 { [ "$rc" = 1 ] && ! ticked "$REPO"; } && pass "unknown schema_version 99 → refuses (fail-closed)" || fail "unknown schema_version not rejected (rc=$rc)"
+
+# --- M4 (v2.17): grade/evidence bind to phase identity (heading+base), not just HEAD ---
+# 1d — a grade whose base is a DIFFERENT window (here HEAD, a valid commit but not this phase's base)
+#      is refused, even though run_id==HEAD — no cross-phase grade reuse at the same commit.
+mkrepo t1d; good_evidence t1d
+printf 'run_id=%s\nverdict=PASS\nno_tests_ok=0\nheading=%s\nbase=%s\n' "$HEAD" "$GRADE_HEADING" "$HEAD" > "$REPO/.claude/.phase-grade"
+rc=$(runtick "$REPO")
+{ [ "$rc" = 1 ] && ! ticked "$REPO" && grep -qi 'different phase window' "$WORK/out"; } \
+  && pass "M4: grade bound to a wrong base → refuse (no cross-window reuse)" || fail "M4 wrong-base grade not refused (rc=$rc)"
+
+# 1e — a grade for a DIFFERENT heading (another phase at the same HEAD) is refused.
+mkrepo t1e; good_evidence t1e
+printf 'run_id=%s\nverdict=PASS\nno_tests_ok=0\nheading=%s\nbase=%s\n' "$HEAD" '## Phase 9 — Elsewhere' "$(_base t1e)" > "$REPO/.claude/.phase-grade"
+rc=$(runtick "$REPO")
+{ [ "$rc" = 1 ] && ! ticked "$REPO" && grep -qi 'cross-phase grade reuse' "$WORK/out"; } \
+  && pass "M4: grade for a different heading → refuse (cross-phase reuse)" || fail "M4 wrong-heading grade not refused (rc=$rc)"
+
+# 1f — a stale pre-v2.17 grade (no heading/base fields) → refuse; must re-record to bind it.
+mkrepo t1f; good_evidence t1f
+printf 'run_id=%s\nverdict=PASS\nno_tests_ok=0\n' "$HEAD" > "$REPO/.claude/.phase-grade"
+rc=$(runtick "$REPO")
+{ [ "$rc" = 1 ] && ! ticked "$REPO" && grep -qi 'pre-v2.17 grade' "$WORK/out"; } \
+  && pass "M4: unbound pre-v2.17 grade → refuse (re-record required)" || fail "M4 unbound grade not refused (rc=$rc)"
+
+# 1g — schema-3 evidence for a DIFFERENT window → refuse (evidence reuse across phases).
+mkrepo t1g; good_grade t1g
+set_evidence t1g "{\"schema_version\":3,\"passed\":true,\"run_id\":\"$HEAD\",\"heading\":\"$GRADE_HEADING\",\"base\":\"$HEAD\"}"
+rc=$(runtick "$REPO")
+{ [ "$rc" = 1 ] && ! ticked "$REPO" && grep -qi 'evidence.*different phase window' "$WORK/out"; } \
+  && pass "M4: evidence bound to a wrong base → refuse" || fail "M4 wrong-base evidence not refused (rc=$rc)"
+
+# 1h — schema-3 evidence whose content_hash does not match its body → refuse (tamper-evident).
+mkrepo t1h; good_grade t1h
+set_evidence t1h "{\"schema_version\":3,\"passed\":true,\"run_id\":\"$HEAD\",\"heading\":\"$GRADE_HEADING\",\"base\":\"$(_base t1h)\",\"content_hash\":\"deadbeefdeadbeef\"}"
+rc=$(runtick "$REPO")
+{ [ "$rc" = 1 ] && ! ticked "$REPO" && grep -qi 'content_hash mismatch' "$WORK/out"; } \
+  && pass "M4: evidence content_hash tamper → refuse" || fail "M4 content_hash tamper not refused (rc=$rc)"
+
+# 1i — POSITIVE: a schema-3 evidence carrying the REAL content_hash (computed like test-evidence.sh)
+#      + matching heading/base ticks — proves the hash check does not false-reject honest evidence.
+mkrepo t1i; good_grade t1i
+body="{\"schema_version\":3,\"passed\":true,\"run_id\":\"$HEAD\",\"heading\":\"$GRADE_HEADING\",\"base\":\"$(_base t1i)\"}"
+ch=$(printf '%s' "$body" | jq -cS 'del(.content_hash)' | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -d' ' -f1)
+set_evidence t1i "$(printf '%s' "$body" | jq -c --arg h "$ch" '. + {content_hash:$h}')"
+rc=$(runtick "$REPO")
+{ [ "$rc" = 0 ] && ticked "$REPO"; } && pass "M4: valid schema-3 evidence (real content_hash) → ticks" || fail "M4 valid v3 evidence did not tick (rc=$rc)"
 
 # 2 — passed:false → refuses, roadmap unchanged, NEXT_FINDINGS written.
 mkrepo t2; good_grade t2; set_evidence t2 "{\"passed\":false,\"run_id\":\"$HEAD\"}"
@@ -245,8 +295,11 @@ printf 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n' > "$REPO/.claude/.phase-base
 # Proves the trusted env overrides the untrusted file (this is the tick-level half of the .phase-base
 # forgery fix). If tick had used the forged file (==HEAD) it would refuse rc=1, so rc=3 proves override.
 mkrepo t14 auth/login.py 'def login(): return True'
-printf '%s\n' "$HEAD" > "$REPO/.claude/.phase-base"
+# Bind grade+evidence to the TRUSTED base (the original .phase-base == HEAD~1, what record-grade sees via
+# TICK_BASE in headless) BEFORE forging the file, so the v2.17 binding passes and the high-stakes scan of
+# the real window fires (rc 3) rather than the binding refusing (rc 1).
 good_grade t14; good_evidence t14
+printf '%s\n' "$HEAD" > "$REPO/.claude/.phase-base"
 rc=$(runtick_base "$REPO" "$(git -C "$REPO" rev-parse HEAD~1)")
 { [ "$rc" = 3 ] && ! ticked "$REPO"; } \
   && pass "TICK_BASE overrides a forged .phase-base → real window scanned (exit 3)" || fail "TICK_BASE did not override forged file (rc=$rc)"

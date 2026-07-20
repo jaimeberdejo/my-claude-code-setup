@@ -61,6 +61,17 @@ if [ "$SRC" = "file:.claude/test-command" ] && [ -f .claude/test-command ]; then
   CFG_SHA=$( { shasum -a 256 .claude/test-command 2>/dev/null || sha256sum .claude/test-command 2>/dev/null; } | cut -d' ' -f1 )
 fi
 
+# Phase IDENTITY (schema v3): bind the evidence to the heading + base of the phase, not just HEAD, so
+# evidence produced for phase X cannot be reused to tick phase Y at the same commit (v2.17 OBJ-1710).
+# Resolved via the SAME shared resolver tick.sh uses. Fail-safe: if the resolver is unavailable or the
+# window can't be resolved, heading/base are left empty and tick fails closed on the mismatch.
+EV_HEADING=""; EV_BASE=""
+[ -f .claude/lib/_roadmap.sh ]     && . .claude/lib/_roadmap.sh     2>/dev/null || true
+[ -f .claude/lib/_phase-range.sh ] && . .claude/lib/_phase-range.sh 2>/dev/null || true
+if command -v resolve_phase_range >/dev/null 2>&1 && resolve_phase_range 2>/dev/null; then
+  EV_HEADING="$PR_HEADING"; EV_BASE="$PR_BASE_SHA"
+fi
+
 # --- evidence schema v2 helpers -----------------------------------------------
 iso_now() { date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo ""; }
 EV_START_EPOCH=$(date +%s 2>/dev/null || echo 0)
@@ -102,11 +113,15 @@ emit() {
      --argjson requirements "$reqs_json" \
      --arg summary "$summ_r" \
      --argjson redacted "$red" \
-     '{schema_version: 2,
+     --arg heading "$EV_HEADING" \
+     --arg base "$EV_BASE" \
+     '{schema_version: 3,
        passed: $passed,
        command: (if $cmd == "" then null else $cmd end),
        exit: $exit,
        run_id: $run_id,
+       heading: (if $heading == "" then null else $heading end),
+       base: (if $base == "" then null else $base end),
        source: (if $source == "" then null else $source end),
        config_sha: (if $config_sha == "" then null else $config_sha end),
        evidence_id: (if $eid == "" then null else $eid end),

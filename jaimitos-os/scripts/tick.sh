@@ -190,6 +190,8 @@ fi
 g_run=$(grep -E '^run_id=' "$GRADE" | head -1 | cut -d= -f2- || true)
 g_verdict=$(grep -E '^verdict=' "$GRADE" | head -1 | cut -d= -f2- || true)
 g_notests=$(grep -E '^no_tests_ok=' "$GRADE" | head -1 | cut -d= -f2- || true)
+g_heading=$(grep -E '^heading=' "$GRADE" | head -1 | cut -d= -f2- || true)
+g_base=$(grep -E '^base=' "$GRADE" | head -1 | cut -d= -f2- || true)
 [ "$g_run" = "$HEAD" ] || refuse "grade evidence is stale (grade run_id '$g_run' != HEAD '$HEAD')"
 [ "$g_verdict" = "PASS" ] || refuse "evaluator verdict is not PASS (got '$g_verdict')"
 
@@ -205,9 +207,11 @@ jq -e 'type' "$EVIDENCE" >/dev/null 2>&1 || refuse "test evidence is not valid J
 # richer v2 fields (evidence_id, requirements, timestamps, classification, redacted summary, content_hash)
 # are additive; the passed/run_id/command reads below are unchanged, so a summary can never override exit.
 e_schema=$(jq -r '.schema_version // 1' "$EVIDENCE" 2>/dev/null || echo "bad")
-case "$e_schema" in 1|2) : ;; *) refuse "test evidence schema_version '$e_schema' unsupported (this gate understands 1–2)" ;; esac
+case "$e_schema" in 1|2|3) : ;; *) refuse "test evidence schema_version '$e_schema' unsupported (this gate understands 1–3)" ;; esac
 e_run=$(jq -r '.run_id // ""' "$EVIDENCE")
 e_passed=$(jq -r '.passed' "$EVIDENCE" 2>/dev/null || echo "missing")
+e_heading=$(jq -r '.heading // ""' "$EVIDENCE" 2>/dev/null || echo "")
+e_base=$(jq -r '.base // ""' "$EVIDENCE" 2>/dev/null || echo "")
 [ "$e_run" = "$HEAD" ] || refuse "test evidence is stale (evidence run_id '$e_run' != HEAD '$HEAD')"
 case "$e_passed" in
   true) : ;;
@@ -252,6 +256,30 @@ BASE_SHA="$PR_BASE_SHA"; BASE_SRC="$PR_SOURCE"; ANCHOR_USED="$PR_ANCHOR_USED"; R
 # Print the exact judged range (C-C): in manual mode the human on the loop is the trusted reviewer, so
 # make the window they are vouching for explicit rather than implicit.
 echo "tick: judging range ${BASE_SHA:0:12}..${HEAD:0:12}  (base source: $BASE_SRC)" >&2
+
+# --- phase-identity binding (v2.17 OBJ-1704/1710) ---
+# The grade and evidence bind to HEAD (run_id, above), but at a single HEAD several phases can share
+# the same commit; a grade/evidence recorded for phase X used to satisfy the gate for phase Y. Require
+# both to also carry the heading + base of THIS phase — record-grade.sh and test-evidence.sh stamp them
+# from the SAME shared resolver, so an artifact for a different window is now refused.
+#   Grade: the sole writer (record-grade.sh) always stamps these now, so an EMPTY value is a stale
+#   pre-v2.17 grade — fail closed and re-record.
+[ -n "$g_base" ] || refuse "grade carries no phase base (stale pre-v2.17 grade) — re-run scripts/record-grade.sh to bind it to this phase"
+[ "$g_base" = "$BASE_SHA" ] || refuse "grade base (${g_base:0:12}) != this phase's base (${BASE_SHA:0:12}) — the grade belongs to a different phase window"
+[ "$g_heading" = "$heading" ] || refuse "grade heading ('$g_heading') != the phase being ticked ('$heading') — cross-phase grade reuse"
+#   Evidence: schema 3 carries heading + base + a content_hash; verify all three. Legacy 1–2 evidence
+#   has no binding — accept with a warning (documented sunset residual; a fresh test-evidence.sh is v3).
+if [ "$e_schema" = 3 ]; then
+  [ "$e_base" = "$BASE_SHA" ] || refuse "evidence base (${e_base:0:12}) != this phase's base (${BASE_SHA:0:12}) — evidence belongs to a different phase window"
+  [ "$e_heading" = "$heading" ] || refuse "evidence heading ('$e_heading') != the phase being ticked ('$heading') — cross-phase evidence reuse"
+  ch_stored=$(jq -r '.content_hash // ""' "$EVIDENCE" 2>/dev/null || echo "")
+  if [ -n "$ch_stored" ]; then
+    ch_calc=$(jq -cS 'del(.content_hash)' "$EVIDENCE" 2>/dev/null | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -d' ' -f1)
+    [ "$ch_stored" = "$ch_calc" ] || refuse "evidence content_hash mismatch — a field was edited after the evidence was written (tamper-evident)"
+  fi
+else
+  echo "tick: ⚠ legacy test evidence schema $e_schema — no phase-identity binding (v2.17 residual; a fresh scripts/test-evidence.sh writes schema 3)." >&2
+fi
 
 [ -f .claude/lib/_secret-scan.sh ] && . .claude/lib/_secret-scan.sh 2>/dev/null || true
 [ -f .claude/lib/_high-stakes.sh ] && . .claude/lib/_high-stakes.sh 2>/dev/null || true
@@ -464,7 +492,9 @@ if [ "$verify_ok" != 1 ]; then
 fi
 
 # (7) success → clean temps + backups, drop the consumed runtime evidence, report.
+# Drop .tick-evidence.json too (v2.17 OBJ-1710): a green evidence file that outlived its tick was
+# reusable for another tick at the same HEAD. It is regenerated per phase by scripts/test-evidence.sh.
 rm -f "$R_BAK" "$S_BAK"; tx_temps
-rm -f .claude/.phase-ready .claude/.phase-grade .claude/.supervised-approval 2>/dev/null || true
+rm -f .claude/.phase-ready .claude/.phase-grade .claude/.supervised-approval .claude/.tick-evidence.json 2>/dev/null || true
 echo "tick: ✓ ticked '$heading' ($((before - new_after)) item(s))"
 exit 0

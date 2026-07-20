@@ -70,10 +70,24 @@ NO_TESTS_OK=0
 # code the evaluator quoted must NOT flip the flag and let a passed:null phase skip the test gate.
 printf '%s\n' "$VERDICT" | grep -qE '^[[:space:]]*NO_TESTS_OK([[:space:]]|$)' && NO_TESTS_OK=1
 
+# Bind the grade to the phase IDENTITY (heading + base), not just HEAD, so a grade recorded for phase
+# X can never satisfy the tick gate for phase Y at the same commit (v2.17 OBJ-1704/1710). Resolved via
+# the SAME shared resolver tick.sh uses, so the recorded base equals the range tick will judge. If the
+# resolver can't resolve a window (no phase start recorded), heading/base are left empty and tick fails
+# closed on the mismatch.
+G_HEADING=""; G_BASE=""
+[ -f .claude/lib/_roadmap.sh ]     && . .claude/lib/_roadmap.sh     2>/dev/null || true
+[ -f .claude/lib/_phase-range.sh ] && . .claude/lib/_phase-range.sh 2>/dev/null || true
+if command -v resolve_phase_range >/dev/null 2>&1 && resolve_phase_range 2>/dev/null; then
+  G_HEADING="$PR_HEADING"; G_BASE="$PR_BASE_SHA"
+fi
+
 mkdir -p .claude
 {
   echo "run_id=$(git rev-parse HEAD 2>/dev/null)"
   echo "verdict=PASS"
   echo "no_tests_ok=$NO_TESTS_OK"
+  echo "heading=$G_HEADING"
+  echo "base=$G_BASE"
 } > .claude/.phase-grade
-echo "record-grade: recorded PASS (no_tests_ok=$NO_TESTS_OK) at $(git rev-parse --short HEAD 2>/dev/null)."
+echo "record-grade: recorded PASS (no_tests_ok=$NO_TESTS_OK) at $(git rev-parse --short HEAD 2>/dev/null) for '${G_HEADING:-<unresolved>}'."
