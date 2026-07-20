@@ -36,22 +36,25 @@ set -uo pipefail
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 1
 
 MANIFEST=".claude/.jaimitos-manifest"
-TOOLKIT=""; DRY_RUN=0; YES=0; ADOPT=0; RESTORE=""
+TOOLKIT=""; DRY_RUN=0; YES=0; ADOPT=0; RESTORE=""; PRUNE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --toolkit) [ $# -ge 2 ] || { echo "sync: --toolkit requires a path argument" >&2; exit 2; }
                TOOLKIT="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --yes)     YES=1; shift ;;
+    --prune)   PRUNE=1; shift ;;
     --adopt-manifest) ADOPT=1; shift ;;
     --restore) [ $# -ge 2 ] || { echo "sync: --restore requires a path argument" >&2; exit 2; }
                RESTORE="$2"; shift 2 ;;
     -h|--help)
-      echo "usage: sync.sh --toolkit <path> [--dry-run] [--yes] [--adopt-manifest] [--restore <path>]"
+      echo "usage: sync.sh --toolkit <path> [--dry-run] [--yes] [--prune] [--adopt-manifest] [--restore <path>]"
       echo "  Manifest-driven toolkit update for an ALREADY-scaffolded project. Unchanged files are"
       echo "  batch-updated after one confirmation; locally modified files are never written (diff"
       echo "  shown for manual merge); locally deleted files are never recreated (use --restore)."
-      echo "  Pre-2.5.0 projects: run once with --adopt-manifest to record the current baseline."
+      echo "  Retired files (in your manifest, no longer shipped) are REPORTED by default; --prune"
+      echo "  removes the unchanged ones (after a confirmation, or --yes) — modified ones are never"
+      echo "  auto-removed. Pre-2.5.0 projects: run once with --adopt-manifest to record the baseline."
       exit 0 ;;
     *) echo "sync: unknown argument '$1'" >&2; exit 2 ;;
   esac
@@ -113,20 +116,40 @@ manifest_sha() {
 }
 
 MANIFEST_UPDATES=""   # "sha  path" lines for files actually written/verified this run
+MANIFEST_DROPS=""     # bare paths to REMOVE from the manifest (retired entries; v2.17)
 record_entry() { MANIFEST_UPDATES="${MANIFEST_UPDATES}$1  $2"$'\n'; }
 apply_manifest_updates() {
-  [ -n "$MANIFEST_UPDATES" ] || return 0
+  [ -n "$MANIFEST_UPDATES$MANIFEST_DROPS" ] || return 0
   [ "$DRY_RUN" -eq 1 ] && return 0
   local tmp; tmp=$(mktemp 2>/dev/null || echo "$MANIFEST.tmp.$$")
   {
     if [ -f "$MANIFEST" ]; then
-      printf '%s' "$MANIFEST_UPDATES" | awk '{ print substr($0, 67) }' > "$tmp.drop"
+      # Drop set = paths being re-added (dedup) PLUS retired paths being removed. Both as bare paths.
+      { printf '%s' "$MANIFEST_UPDATES" | awk 'length($0) > 66 { print substr($0, 67) }'
+        printf '%s' "$MANIFEST_DROPS"; } > "$tmp.drop"
       awk 'NR==FNR { drop[$0]=1; next } !(substr($0, 67) in drop)' "$tmp.drop" "$MANIFEST"
     fi
     printf '%s' "$MANIFEST_UPDATES"
-  } | LC_ALL=C sort > "$tmp"
+  } | LC_ALL=C sort | awk 'NF' > "$tmp"
   mkdir -p .claude && mv "$tmp" "$MANIFEST"
   rm -f "$tmp.drop" 2>/dev/null || true
+}
+
+# _retired_path_safe <manifest-path>: a retired path is safe to ACT on (remove / drop) only if it is a
+# plain relative path inside a managed root and not a symlink — so a malformed/hostile manifest line can
+# never make sync delete outside the project or follow a symlink out of it.
+_retired_path_safe() {
+  local p="$1"
+  case "$p" in
+    ''|/*) return 1 ;;                 # empty or absolute
+    ..|../*|*/..|*/../*) return 1 ;;   # any .. traversal component
+  esac
+  case "$p" in
+    scripts/*|.claude/*|sandbox/*|.github/*) : ;;   # the only roots the toolkit ships into
+    *) return 1 ;;
+  esac
+  [ -L "$p" ] && return 1              # never follow / delete through a symlink
+  return 0
 }
 
 # Enumerate both source roots exactly as install.sh ships them (sorted → deterministic order).
@@ -276,6 +299,57 @@ if [ "$NBATCH" -gt 0 ]; then
   fi
 fi
 
+# --- retired-file reconciliation (v2.17 OBJ-1704) ------------------------------------------------
+# Manifest entries the CURRENT toolkit no longer ships. Before v2.17 sync classified only current
+# toolkit files, so an upgrade left retired guard scripts/libs on disk AND stale manifest entries
+# forever. Report-only by default; removing an UNCHANGED retired file needs --prune + a confirmation
+# (or --yes) because deleting a user's file is destructive. A LOCALLY-MODIFIED retired file is NEVER
+# auto-removed (reported for a manual decision); a LOCALLY-DELETED one just has its stale entry dropped.
+RET_REMOVABLE=0; RET_MODIFIED=0; RET_DELETED=0; RET_REMOVED=0; RET_UNSAFE=0; RET_REMOVABLE_LIST=""
+CUR_RELS=$(toolkit_files | cut -f1)
+RET_LIST=""
+while IFS= read -r mpath; do
+  [ -n "$mpath" ] || continue
+  printf '%s\n' "$CUR_RELS" | grep -qxF -- "$mpath" && continue   # still shipped → not retired
+  project_owned "$mpath" && continue                              # defensive: install never records these
+  RET_LIST="${RET_LIST}${mpath}"$'\n'
+done < <(awk 'length($0) > 66 { print substr($0, 67) }' "$MANIFEST")
+if [ -n "$(printf '%s' "$RET_LIST" | tr -d '[:space:]')" ]; then
+  echo ""
+  echo "retired toolkit files (in your manifest, no longer shipped by this toolkit):"
+  while IFS= read -r rp; do
+    [ -n "$rp" ] || continue
+    if ! _retired_path_safe "$rp"; then
+      RET_UNSAFE=$((RET_UNSAFE+1)); echo "  unsafe/malformed manifest path — NOT touching (report only): $rp" >&2; continue
+    fi
+    rsha=$(manifest_sha "$rp")
+    if [ ! -e "$rp" ]; then
+      RET_DELETED=$((RET_DELETED+1)); echo "  retired + already gone locally — dropping stale manifest entry: $rp"
+      MANIFEST_DROPS="${MANIFEST_DROPS}${rp}"$'\n'
+    elif [ -n "$rsha" ] && [ "$(sha256_of "$rp")" = "$rsha" ]; then
+      RET_REMOVABLE=$((RET_REMOVABLE+1)); echo "  retired + unchanged (safe to remove): $rp"
+      RET_REMOVABLE_LIST="${RET_REMOVABLE_LIST}${rp}"$'\n'
+    else
+      RET_MODIFIED=$((RET_MODIFIED+1)); echo "  retired but LOCALLY MODIFIED — manual decision required, NOT removed: $rp"
+    fi
+  done <<< "$RET_LIST"
+  if [ "$RET_REMOVABLE" -gt 0 ]; then
+    if [ "$PRUNE" -ne 1 ]; then
+      echo "  ($RET_REMOVABLE removable — re-run with --prune to delete them; modified/unknown files are never auto-removed)"
+    elif [ "$DRY_RUN" -eq 1 ]; then
+      echo "  (dry-run) $RET_REMOVABLE retired file(s) would be removed."
+    elif [ "$YES" -eq 1 ] || confirm "Remove $RET_REMOVABLE retired, unchanged toolkit file(s)?"; then
+      while IFS= read -r rp; do
+        [ -n "$rp" ] || continue
+        if rm -f "$rp" 2>/dev/null; then echo "  removed: $rp"; RET_REMOVED=$((RET_REMOVED+1)); MANIFEST_DROPS="${MANIFEST_DROPS}${rp}"$'\n'
+        else echo "  FAILED to remove: $rp" >&2; FAILED=$((FAILED+1)); fi
+      done <<< "$RET_REMOVABLE_LIST"
+    else
+      echo "  skipped (declined retired-file removal)."
+    fi
+  fi
+fi
+
 apply_manifest_updates
 
 echo ""
@@ -285,6 +359,11 @@ echo "  manual merge:       $MODIFIED"
 echo "  deleted locally:    $DELETED"
 echo "  already current:    $CURRENT"
 [ "$SKIPPED_CI" -gt 0 ] && echo "  CI not opted in:    $SKIPPED_CI"
+[ "$RET_REMOVED"   -gt 0 ] && echo "  retired removed:    $RET_REMOVED"
+[ "$RET_REMOVABLE" -gt 0 ] && [ "$RET_REMOVED" -eq 0 ] && echo "  retired removable:  $RET_REMOVABLE (use --prune)"
+[ "$RET_MODIFIED"  -gt 0 ] && echo "  retired modified:   $RET_MODIFIED (manual)"
+[ "$RET_DELETED"   -gt 0 ] && echo "  retired entries dropped: $RET_DELETED"
+[ "$RET_UNSAFE"    -gt 0 ] && echo "  retired unsafe paths:    $RET_UNSAFE (skipped)"
 echo "  failed:             $FAILED"
 
 if [ "$FAILED" -gt 0 ]; then

@@ -330,5 +330,57 @@ rc=$(runsync --yes)
   || fail "present guard-suite file not updated (rc=$rc)"
 
 echo ""
+echo "retired-file reconciliation (v2.17): a manifest entry the current toolkit no longer ships"
+
+# Each retired test rebuilds a FRESH toolkit (mktoolkit) because retiring a file mutates $TOOLKIT.
+
+# unchanged retired → REPORTED, not removed without --prune.
+mktoolkit; mkproject tR1; scaffold_project
+rm "$TOOLKIT/scripts/a.sh"            # RETIRE a.sh from the toolkit (still in the manifest + locally)
+rc=$(runsync --yes)                  # note: NO --prune
+{ [ "$rc" = 0 ] && [ -f scripts/a.sh ] && grep -q 'retired + unchanged (safe to remove): scripts/a.sh' "$WORK/out" && grep -q 'retired removable' "$WORK/out"; } \
+  && pass "unchanged retired file is REPORTED, not removed without --prune" || fail "retired report wrong (rc=$rc)"
+
+# --prune --yes → removes it AND drops the manifest entry.
+rc=$(runsync --prune --yes)
+{ [ "$rc" = 0 ] && [ ! -e scripts/a.sh ] && ! grep -qF '  scripts/a.sh' .claude/.jaimitos-manifest; } \
+  && pass "--prune removes an unchanged retired file + drops its manifest entry" || fail "--prune did not remove/drop (rc=$rc)"
+
+# locally MODIFIED retired → never auto-removed, even with --prune.
+mktoolkit; mkproject tR2; scaffold_project
+rm "$TOOLKIT/scripts/a.sh"; echo 'local customization' >> scripts/a.sh
+rc=$(runsync --prune --yes)
+{ [ "$rc" = 0 ] && [ -f scripts/a.sh ] && grep -q 'LOCALLY MODIFIED' "$WORK/out"; } \
+  && pass "a locally-modified retired file is preserved (manual), never auto-removed" || fail "modified retired mishandled (rc=$rc)"
+
+# locally DELETED retired → stale manifest entry dropped, nothing reinstalled.
+mktoolkit; mkproject tR3; scaffold_project
+rm "$TOOLKIT/scripts/a.sh"; rm scripts/a.sh
+rc=$(runsync --yes)
+{ [ "$rc" = 0 ] && [ ! -e scripts/a.sh ] && ! grep -qF '  scripts/a.sh' .claude/.jaimitos-manifest && grep -q 'dropping stale manifest entry: scripts/a.sh' "$WORK/out"; } \
+  && pass "a locally-deleted retired file has its stale manifest entry dropped (not reinstalled)" || fail "deleted retired mishandled (rc=$rc)"
+
+# path-safety: a `..` traversal manifest path is refused (report only, never acted on).
+mktoolkit; mkproject tR4; scaffold_project
+printf '%s  ../evil.sh\n' '0000000000000000000000000000000000000000000000000000000000000000' >> .claude/.jaimitos-manifest
+rc=$(runsync --prune --yes)
+{ [ "$rc" = 0 ] && grep -q 'unsafe/malformed manifest path' "$WORK/out" && [ ! -e "$WORK/evil.sh" ]; } \
+  && pass "a .. traversal manifest path is refused (never removed/followed)" || fail "unsafe path not caught (rc=$rc)"
+
+# symlink-escape safety: a retired path that is a symlink is never followed/removed.
+mktoolkit; mkproject tR5; scaffold_project
+rm "$TOOLKIT/scripts/a.sh"; rm scripts/a.sh; ln -s /etc/hosts scripts/a.sh 2>/dev/null
+rc=$(runsync --prune --yes)
+{ [ "$rc" = 0 ] && [ -L scripts/a.sh ] && grep -q 'unsafe/malformed manifest path' "$WORK/out"; } \
+  && pass "a retired path that is a symlink is refused (no escape)" || fail "symlink retired mishandled (rc=$rc)"
+
+# idempotent: a re-sync after pruning shows no retired files.
+mktoolkit; mkproject tR6; scaffold_project
+rm "$TOOLKIT/scripts/a.sh"; runsync --prune --yes >/dev/null
+rc=$(runsync --yes)
+{ [ "$rc" = 0 ] && ! grep -q 'retired toolkit files' "$WORK/out"; } \
+  && pass "a second sync after prune is clean (idempotent)" || fail "retired reconciliation not idempotent (rc=$rc)"
+
+echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All sync.sh tests passed."; exit 0
 else echo "$FAILS sync test(s) FAILED."; echo "--- last output ---"; tail -n 25 "$WORK/out" 2>/dev/null; exit 1; fi
