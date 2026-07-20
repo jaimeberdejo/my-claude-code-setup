@@ -79,6 +79,18 @@ for p in \
 do should_match "$p"; done
 
 echo ""
+echo "Adversarial INTRA-keyword casing — a keyword whose OWN letters are cased to dodge the matcher must"
+echo "still match (regression guard: normalization must be a UNION with the raw scan, not a replacement —"
+echo "these matched in v2.16 via the case-insensitive raw grep and must keep matching):"
+for p in \
+  "src/reFundOrder.ts" \
+  "src/deLeteUser.ts" \
+  "src/aUthProvider.ts" \
+  "src/withDrawFunds.ts" \
+  "src/auThService.ts"
+do should_match "$p"; done
+
+echo ""
 echo "camelCase over-match — DELIBERATE matches decided explicitly (fail-safe generosity; a benign"
 echo "hit only forces supervised review, it is never a false PASS): the auth[a-z0-9_-]* family also"
 echo "catches pure-English author/authority, and the loose substrings (payment/migrat) fire anywhere:"

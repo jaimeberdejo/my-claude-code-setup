@@ -240,6 +240,10 @@ mkrepo mv4 "$DONE"; rc=$(runclose "$REPO" --name 'a/b')
 mkrepo mv5 "$DONE"; rc=$(runclose "$REPO" --bogus)
 [ "$rc" = 2 ] && pass "unknown argument → exit 2 (usage)" || fail "unknown arg did not exit 2 (rc=$rc)"
 
+mkrepo mv6 "$DONE"; rc=$(runclose "$REPO" --name "$(printf 'a\nb')")
+{ [ "$rc" = 2 ] && [ ! -d "$REPO/docs/archive" ]; } \
+  && pass "--name with an embedded newline → exit 2, nothing archived" || fail "newline --name mishandled (rc=$rc)"
+
 echo ""
 echo "Transactional close (v2.17): a failure during apply restores ROADMAP + STATE byte-for-byte"
 # Inject an archive-move failure: make docs/archive a READ-ONLY directory so the mv into it fails

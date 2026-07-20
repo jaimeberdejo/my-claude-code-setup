@@ -44,7 +44,10 @@ if [ "$NAME_GIVEN" = 1 ]; then
   case "$NAME" in
     */*|*\\*) echo "close-milestone: --name must not contain a path separator: '$NAME'" >&2; exit 2 ;;
     *..*)     echo "close-milestone: --name must not contain '..': '$NAME'" >&2; exit 2 ;;
+    *$'\n'*)  echo "close-milestone: --name must not contain a newline" >&2; exit 2 ;;
   esac
+  # A grep for [[:cntrl:]] is LINE-oriented and never sees an embedded newline (handled by the case
+  # above); this catches the remaining control chars (tab, etc.).
   printf '%s' "$NAME" | LC_ALL=C grep -q '[[:cntrl:]]' && { echo "close-milestone: --name must not contain control characters" >&2; exit 2; }
 fi
 

@@ -107,7 +107,12 @@ high_stakes_match() {
   matched=$(printf '%s\n' "$1" | while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$line" ] || continue
     norm=$(printf '%s' "$line" | sed -E 's|([a-z0-9])([A-Z])|\1/\2|g; s|([A-Z]+)([A-Z][a-z])|\1/\2|g')
-    printf '%s\n' "$norm" | grep -Eiq "$HIGH_STAKES_RE" 2>/dev/null && printf '%s\n' "$line"
+    # Match the RAW path OR its normalized form (a UNION, not a replacement). The raw grep preserves
+    # v2.16's case-insensitive coverage of a keyword whose OWN letters are adversarially cased
+    # (reFundOrder, deLeteUser); the normalized grep ADDS the camelCase-boundary cases the raw form hid
+    # (OAuthClient, getUserSession). Over-matching is fail-safe (a spurious hit only forces supervised
+    # review), so scanning both forms can only widen coverage, never narrow it.
+    { printf '%s\n' "$line"; printf '%s\n' "$norm"; } | grep -Eiq "$HIGH_STAKES_RE" 2>/dev/null && printf '%s\n' "$line"
   done)
   if [ -n "$matched" ]; then
     matched=$(while IFS= read -r line; do
