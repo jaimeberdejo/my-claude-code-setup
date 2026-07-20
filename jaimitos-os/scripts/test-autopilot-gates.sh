@@ -58,6 +58,8 @@ if [ "$is_eval" = 1 ]; then
       n=$(cat "$cf" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$cf"
       if [ "$n" -ge 2 ]; then echo "PASS"; else echo "NEEDS_WORK: needs a second pass"; fi
       ;;
+    pass_exit1)   echo "PASS"; exit 1 ;;      # PASS token, but the PROCESS exits non-zero (rc 1)
+    pass_exit123) echo "PASS"; exit 123 ;;    # top of the ordinary-nonzero band (below the >=124 watchdog band)
   esac
   exit 0
 fi
@@ -602,6 +604,37 @@ grep -q "✓ ticked" "$WORK/out" && pass "F1 positive: clean run ticks the phase
 published && pass "F1 positive: complete run + --pr publishes" || fail "F1 positive: complete run did NOT publish"
 [ "$(grep -c 'STUB-GH-INVOKED' "$WORK/out")" = 1 ] && pass "F1 positive: gh pr create invoked exactly once" || fail "F1 positive: gh not invoked exactly once ($(grep -c 'STUB-GH-INVOKED' "$WORK/out"))"
 [ "$rc" = 0 ] && pass "F1 positive: successful publish exits 0" || fail "F1 positive: exit was $rc (want 0)"
+
+# 37 — M1 (evaluator process integrity): the evaluator's stdout ends in PASS but its PROCESS exits
+# non-zero (rc 1). The verdict token and the exit status are independent — a grade must require
+# EVAL_RC==0. The run must fail closed: no grade, no tick, no publish, exit non-zero — even with --pr.
+mkrepo r37; BUILDER_MODE=clean EVAL_MODE=pass_exit1; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --pr)
+grep -q "exited non-zero (rc 1)" "$WORK/out" && pass "M1: nonzero evaluator exit (rc 1) detected" || fail "M1: nonzero evaluator exit not detected"
+ticked "$REPO" && fail "M1: ticked despite nonzero evaluator exit (REGRESSION)" || pass "M1: nonzero evaluator exit → not ticked"
+published && fail "M1: PUBLISHED despite nonzero evaluator exit (REGRESSION)" || pass "M1: nonzero evaluator exit → not published"
+[ "$rc" != 0 ] && pass "M1: nonzero evaluator exit → run exits non-zero (rc=$rc)" || fail "M1: run exit was $rc (want non-zero)"
+
+# 37b — the top of the ordinary-nonzero band (rc 123) is caught too (the >=124 watchdog band is a
+# separate, already-tested abort path — this proves 1..123 is the exit-code window we now close).
+mkrepo r37b; BUILDER_MODE=clean EVAL_MODE=pass_exit123; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --no-worktree --allow-dirty)
+{ grep -q "exited non-zero (rc 123)" "$WORK/out" && ! ticked "$REPO"; } && pass "M1: evaluator rc 123 also fails closed, not ticked" || fail "M1: evaluator rc 123 not handled (rc=$rc)"
+
+# 38 — M2 (durable completion transaction): tick.sh flips ROADMAP/STATE in the WORKING TREE but does
+# not commit. If the completion commit FAILS (here a commit-msg hook rejects it — standing in for a
+# failing pre-commit hook or an unset git identity in a fresh sandbox), the run must NOT report success
+# and must NOT publish: the phase is ticked in the working tree but the transition never reaches HEAD.
+mkrepo r38
+cat > "$REPO/.git/hooks/commit-msg" <<'HOOK'
+#!/bin/sh
+grep -q "passed independent grade" "$1" && { echo "commit-msg hook: rejecting completion commit (test)"; exit 1; }
+exit 0
+HOOK
+chmod +x "$REPO/.git/hooks/commit-msg"
+BUILDER_MODE=clean EVAL_MODE=pass; export BUILDER_MODE EVAL_MODE; rc=$(run "$REPO" 1 --no-worktree --allow-dirty)
+grep -q "completion commit FAILED" "$WORK/out" && pass "M2: failed completion commit is detected" || fail "M2: failed completion commit not detected"
+contains "$(logof "$REPO")" "passed independent grade" && fail "M2: completion commit landed in HEAD despite hook failure (REGRESSION)" || pass "M2: completion transition not in HEAD after commit failure"
+ticked "$REPO" && pass "M2: tick applied in the working tree (the failure is the commit, not the tick)" || fail "M2: tick did not apply to the working tree"
+[ "$rc" != 0 ] && pass "M2: failed completion commit → run exits non-zero (rc=$rc)" || fail "M2: run exit was $rc (want non-zero)"
 
 echo ""
 if [ "$FAILS" -eq 0 ]; then echo "All autopilot gate tests passed."; exit 0

@@ -482,7 +482,17 @@ for i in $(seq 1 "$MAX_ITER"); do
   if [ -f AGENT_STOP ] || [ -f "$ORIG_ROOT/AGENT_STOP" ]; then
     echo "autopilot: AGENT_STOP present — stopping at iteration $i."; break
   fi
-  [ "$(roadmap_open_total docs/ROADMAP.md)" -gt 0 ] || { echo "autopilot: roadmap complete. Done."; RUN_RESULT="success"; break; }
+  if [ "$(roadmap_open_total docs/ROADMAP.md)" -eq 0 ]; then
+    # Roadmap fully ticked. Declare success ONLY if the completion transition is durably in HEAD.
+    # A prior iteration that ticked but failed to commit already breaks the loop (the tick path
+    # below fails closed on a bad commit), so this is a belt-and-suspenders assertion that we never
+    # publish an uncommitted completion.
+    if git diff --quiet HEAD -- docs/ROADMAP.md docs/STATE.md 2>/dev/null; then
+      echo "autopilot: roadmap complete. Done."; RUN_RESULT="success"; break
+    fi
+    echo "autopilot: ⛔ roadmap shows complete but docs/ROADMAP.md/STATE.md have uncommitted changes — NOT declaring success; branch stays LOCAL. Recover: commit the completion transition. STOPPING." | tee -a autopilot.log
+    break
+  fi
 
   # STEER mirror: operators write STEER.md in their ORIGINAL checkout, but the loop
   # runs in the worktree. Move it in so the builder (which reads ./STEER.md) sees it.
@@ -611,6 +621,17 @@ for i in $(seq 1 "$MAX_ITER"); do
     RUN_ABORTED=1
     echo "autopilot: ⛔ evaluator watchdog aborted the run (rc $EVAL_RC) — treating as failure, STOPPING." | tee -a "$AUTOPILOT_LOG"; break
   fi
+  # Fail closed on ANY ordinary nonzero evaluator exit (1..123), BEFORE parsing/recording the verdict.
+  # The verdict token (last stdout line) and the process exit status are independent: a `claude`
+  # subprocess that errors after already streaming a response could leave stdout ending in "PASS" while
+  # exiting non-zero. A grade must require EVAL_RC==0 too — mirror the builder's own BUILDER_RC check
+  # above. (>=124 is the watchdog/abort band, already handled; this closes the 1..123 window.)
+  if [ "$EVAL_RC" -ne 0 ]; then
+    echo "autopilot: ⛔ evaluator process exited non-zero (rc $EVAL_RC) — NOT recording a grade or ticking; branch stays LOCAL. STOPPING." | tee -a "$AUTOPILOT_LOG"
+    echo "autopilot: --- last 20 lines of autopilot.log (evaluator stderr) ---" >&2
+    tail -n 20 "$AUTOPILOT_LOG" 2>/dev/null >&2 || true
+    break
+  fi
 
   if [ -z "$(printf '%s' "$VERDICT" | tr -d '[:space:]')" ]; then
     echo "autopilot: evaluator returned no output — treating as FAILURE, stopping." | tee -a autopilot.log
@@ -693,10 +714,26 @@ for i in $(seq 1 "$MAX_ITER"); do
             } >> docs/FAILURES.md
             rm -f NEXT_FINDINGS.md
           fi
-          git add -A 2>/dev/null
-          git commit -m "autopilot: phase passed independent grade (iteration $i)" >/dev/null 2>&1 || true
+          # Durable completion transaction. tick.sh has flipped ROADMAP/STATE in the WORKING TREE but
+          # does NOT commit — success (and therefore publication) requires that transition to land in
+          # HEAD. Do NOT swallow the commit with `|| true`: a failing pre-commit hook or an unset git
+          # identity must fail the run, not silently leave the tick uncommitted while the finish gate
+          # still pushes the builder's per-task commits.
+          if ! git add -A; then
+            echo "autopilot: ⛔ could not stage the completion transition (git add failed) — phase is ticked in the WORKING TREE but NOT durably committed. Branch stays LOCAL, not pushed. Recover: fix the staging error, then 'git add -A && git commit'. STOPPING." | tee -a autopilot.log
+            break
+          fi
+          if ! git commit -m "autopilot: phase passed independent grade (iteration $i)" >>autopilot.log 2>&1; then
+            echo "autopilot: ⛔ completion commit FAILED (see autopilot.log — e.g. a failing pre-commit hook, or unset git user.name/user.email). The phase is ticked in the WORKING TREE but NOT in HEAD. Branch stays LOCAL, not pushed. Recover: resolve the commit failure (e.g. set a git identity), then commit the staged ROADMAP/STATE change. STOPPING." | tee -a autopilot.log
+            break
+          fi
+          # HEAD must now contain the completion transition — assert it before declaring success.
+          if ! git diff --quiet HEAD -- docs/ROADMAP.md docs/STATE.md 2>/dev/null; then
+            echo "autopilot: ⛔ completion commit did not capture docs/ROADMAP.md + docs/STATE.md (an uncommitted transition remains). Branch stays LOCAL, not pushed. STOPPING." | tee -a autopilot.log
+            break
+          fi
           SAME_PHASE_FAILS=0; PREV_OPEN_SIGNATURE=""
-          RUN_RESULT="success"   # F1: this iteration fully succeeded (built → graded PASS → ticked → committed).
+          RUN_RESULT="success"   # F1: built → graded PASS → ticked → DURABLY committed (HEAD contains the transition).
           ;;
         3)
           HS_BLOCKED=1   # high-stakes: finish block must NOT push this branch, even with --pr
