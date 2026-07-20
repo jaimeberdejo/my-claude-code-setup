@@ -28,6 +28,7 @@
 #   Never calls exit and never prints — the CALLER decides severity (tick refuses / exits 3; the CLI
 #   prints + exits; other consumers fail closed). Read-only: it inspects git + the anchor/base/roadmap,
 #   and mutates nothing.
+# shellcheck disable=SC2034  # PR_* are this resolver's OUTPUT contract — set here, read by callers.
 resolve_phase_range() {
   PR_ERR=""; PR_ANCHOR_USED=0; PR_SOURCE=""; PR_BASE=""; PR_BASE_SHA=""; PR_RANGE=""; PR_HEADING="${1:-}"
   PR_HEAD=$(git rev-parse HEAD 2>/dev/null) || { PR_ERR="not a git repo / no HEAD (fail-closed)"; return 1; }

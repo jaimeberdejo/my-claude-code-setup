@@ -65,7 +65,7 @@ jaimitos-claude-setup/
 │       ├── commands/                # /resume /wrap /phase /autopilot /models
 │       ├── agents/                  # researcher, planner, executor, evaluator — one per /phase stage
 │       ├── rules/high-stakes.md     # path-scoped extra care
-│       └── hooks/                   # 7 deterministic shell hooks + 6 shared libs (_secret-scan, _high-stakes, _test-cmd, _eval-isolation, _roadmap, _requirements)
+│       └── hooks/                   # 7 deterministic shell hooks + 7 shared libs (_secret-scan, _high-stakes, _test-cmd, _eval-isolation, _roadmap, _requirements, _phase-range)
 └── skills/                ← the skill pack (portable + setup-jaimitos-os installer) — see skills/README.md
 ```
 
@@ -265,7 +265,7 @@ Yojana / Sutra runtime.
 
 ## Hooks (deterministic shell — not all enforce; see Enforcement reality)
 
-Seven deterministic shell hooks plus six shared libs:
+Seven deterministic shell hooks plus seven shared libs:
 
 | Hook | Event | Role |
 |---|---|---|

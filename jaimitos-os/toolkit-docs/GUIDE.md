@@ -80,7 +80,7 @@ your-repo/
     │   ├── test-gate.sh           # opt-in deterministic test gate (LEAN_TEST_GATE)
     │   ├── commit-on-stop.sh      # honest git checkpoint each turn (secret-scans before committing)
     │   └── ownership-nudge.sh     # reminds you to ADR / teach-back / run the mapme skill after changes
-    ├── lib/                       # 6 SOURCED libraries (not event hooks)
+    ├── lib/                       # 7 SOURCED libraries (not event hooks)
     │   ├── _secret-scan.sh        # SHARED: filename+content secret scan (commit-on-stop + tick + autopilot)
     │   ├── _high-stakes.sh        # SHARED: high-stakes path list + content matcher (the supervised gate)
     │   └── _test-cmd.sh           # SHARED: resolves the project test command (test-gate + test-evidence)
@@ -422,13 +422,16 @@ decides whether that PASS is allowed to become a tick.
 | `commit-on-stop.sh` | turn end | Honest git checkpoint (only claims success when a commit happened). Runs the shared **secret-scan** and refuses — fails closed — to commit credentials. |
 | `ownership-nudge.sh` | turn end | After code changes, nudges: ADR the decision, run teach-back, run the `mapme` skill. Also nudges to update `docs/STATE.md` when a change happened outside an active phase (no `.claude/.phase-ready`) — the quick-fix path that skips `/phase`/`/wrap` otherwise leaves STATE.md silently stale. |
 
-> **Six sourced libraries**, not event hooks: `_secret-scan.sh` (filename+content secret scan),
+> **Seven sourced libraries**, not event hooks: `_secret-scan.sh` (filename+content secret scan),
 > `_high-stakes.sh` (the high-stakes path list + content matcher), `_test-cmd.sh` (test-command
 > resolution), `_eval-isolation.sh` (the pre-grade snapshot plus the destructive/detect-only
 > restore paths), `_roadmap.sh` (the fail-closed phase-heading/`Mode:` parser shared by
-> `tick.sh`, `scripts/autopilot.sh`'s pre-build supervised gate, and `close-milestone.sh`), and
+> `tick.sh`, `scripts/autopilot.sh`'s pre-build supervised gate, and `close-milestone.sh`),
 > `_requirements.sh` (the optional REQ/AC/OBJ id-format and cross-reference validator `lint-roadmap.sh`
-> runs when a phase declares `Requirements:`). The first five are
+> runs when a phase declares `Requirements:`), and `_phase-range.sh` (the ONE shared resolver of a
+> phase's `BASE..HEAD` window — `TICK_BASE` → `.phase-anchor` → `.phase-base` + strict-ancestor + anchor
+> base-integrity — used by `tick.sh`, `scripts/phase-range.sh`, the evaluator, `record-grade.sh` and
+> `test-evidence.sh` so every consumer judges the identical range). The first five are
 > sourced by the hooks, `tick.sh`, and `scripts/autopilot.sh` (`_requirements.sh` only by
 > `lint-roadmap.sh`, deliberately never on the completion path), so the same guards run everywhere — a
 > single source of truth for each.
@@ -1201,7 +1204,7 @@ ONE LINE       Automate the typing, never the judgment.
 ---
 
 ### One paragraph to remember
-Native Claude Code plus a `docs/` folder, seven short hooks, six shared libs, four per-phase-stage
+Native Claude Code plus a `docs/` folder, seven short hooks, seven shared libs, four per-phase-stage
 subagents (research/plan/execute/independent verify, each independently pinnable to its own model),
 one shared completion gate, and a pack of portable skills reproduce what heavyweight frameworks
 automate — spec, roadmap, persistent state, decision log, phase execution, verification — at a

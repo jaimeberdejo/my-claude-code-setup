@@ -72,7 +72,7 @@ out=$(resolve "$REPO"); [ "${out%%|*}" = 1 ] && pass "unresolvable base → rc 1
 
 # 7 — a resolvable but NON-ANCESTOR base (divergent history) → rc 1 (the ancestor guard).
 mkrepo t7
-other=$( cd "$REPO" && git commit-tree "$(git rev-parse HEAD^{tree})" -m orphan </dev/null )
+other=$( cd "$REPO" && git commit-tree "$(git rev-parse 'HEAD^{tree}')" -m orphan </dev/null )
 printf '%s\n' "$other" > "$REPO/.claude/.phase-base"
 out=$(resolve "$REPO"); [ "${out%%|*}" = 1 ] && pass "non-ancestor base → rc 1 (ancestor guard)" || fail "non-ancestor base not refused ($out)"
 
